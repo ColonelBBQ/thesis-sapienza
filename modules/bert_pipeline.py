@@ -8,6 +8,7 @@ import pandas as pd
 import torch
 from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader, Dataset
+from tqdm.auto import tqdm
 from transformers import BertModel, BertTokenizer
 
 
@@ -206,7 +207,8 @@ def train_model(
         model.train()
         print(f"############# Epoch {epoch}: Training Start #############")
 
-        for data in training_loader:
+        train_iterator = tqdm(training_loader, desc=f"Epoch {epoch} [train]", leave=False)
+        for data in train_iterator:
             ids = data["input_ids"].to(device, dtype=torch.long)
             mask = data["attention_mask"].to(device, dtype=torch.long)
             token_type_ids = data["token_type_ids"].to(device, dtype=torch.long)
@@ -220,6 +222,7 @@ def train_model(
             optimizer.step()
 
             train_loss += loss.item()
+            train_iterator.set_postfix(loss=f"{loss.item():.4f}")
 
         train_loss /= len(training_loader)
         print(f"############# Epoch {epoch}: Training End #############")
@@ -228,7 +231,8 @@ def train_model(
         print(f"############# Epoch {epoch}: Validation Start #############")
 
         with torch.no_grad():
-            for data in validation_loader:
+            validation_iterator = tqdm(validation_loader, desc=f"Epoch {epoch} [valid]", leave=False)
+            for data in validation_iterator:
                 ids = data["input_ids"].to(device, dtype=torch.long)
                 mask = data["attention_mask"].to(device, dtype=torch.long)
                 token_type_ids = data["token_type_ids"].to(device, dtype=torch.long)
@@ -237,6 +241,7 @@ def train_model(
                 outputs = model(ids, mask, token_type_ids)
                 loss = loss_fn(outputs, targets)
                 valid_loss += loss.item()
+                validation_iterator.set_postfix(loss=f"{loss.item():.4f}")
 
         valid_loss /= len(validation_loader)
         print(f"############# Epoch {epoch}: Validation End #############")
