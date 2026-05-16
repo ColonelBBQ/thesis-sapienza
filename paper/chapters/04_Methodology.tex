@@ -1,0 +1,27 @@
+\chapter{Methodology}
+
+This chapter describes the three methodological approaches used in the experimental evaluation: the BERT classification pipeline used as the primary classifier, the LLM-based disambiguation strategy applied to ambiguous requirements, and the LLM direct classification setup evaluated in zero-shot and few-shot configurations.
+
+\section{BERT Classification Pipeline}
+
+[To be completed: description of the BERT variant used, fine-tuning procedure, training data split, hyperparameters, hardware setup.]
+
+\section{LLM-Based Disambiguation}
+
+[To be completed: which LLM was used, prompting strategy, how semantic meaning was preserved, example prompt, post-processing of outputs.]
+
+\section{LLM as Direct Classifier}
+
+[To be completed: model selection rationale, prompt structure for classification.]
+
+\subsection{Zero-Shot Classification}
+
+[To be completed: prompt design, how class labels were communicated to the model with no examples.]
+
+\subsection{Few-Shot Classification}
+
+[To be completed: number of examples per class, selection strategy for examples, prompt structure.]
+
+\section{Evaluation Metrics}
+
+All experiments are evaluated using precision, recall, and F1-score. For the binary classification task (requirement vs.\ non-requirement) standard macro-averaged metrics are reported. For the multi-label cloud category classification task, per-category and macro-averaged scores are reported to capture performance variation across categories.

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+import random
 from dataclasses import dataclass
 from typing import Callable
 
@@ -7,9 +9,21 @@ import numpy as np
 import pandas as pd
 import torch
 from sklearn.model_selection import train_test_split
+from sklearn.metrics import precision_recall_fscore_support
 from torch.utils.data import DataLoader, Dataset
 from tqdm.auto import tqdm
 from transformers import BertModel, BertTokenizer
+
+logger = logging.getLogger(__name__)
+
+
+def set_seed(seed: int) -> None:
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+
 
 
 DEFAULT_TARGET_LIST = [
@@ -34,8 +48,12 @@ class BertExperimentConfig:
     weight_decay: float = 1e-6
     test_size: float = 0.15
     seed: int = 42
-    tokenizer_name: str = "bert-base-uncased"
+    model_name: str = "bert-base-uncased"
     do_lower_case: bool = True
+    threshold: float = 0.20
+    dropout: float = 0.3
+    hidden_size: int = 768
+    num_workers: int = 0
 
 
 class CustomDataset(Dataset):
@@ -71,11 +89,11 @@ class CustomDataset(Dataset):
 
 
 class BERTClass(torch.nn.Module):
-    def __init__(self, num_labels: int):
+    def __init__(self, model_name: str, num_labels: int, dropout: float, hidden_size: int):
         super().__init__()
-        self.bert_model = BertModel.from_pretrained("bert-base-uncased", return_dict=True)
-        self.dropout = torch.nn.Dropout(0.3)
-        self.linear = torch.nn.Linear(768, num_labels)
+        self.bert_model = BertModel.from_pretrained(model_name, return_dict=True)
+        self.dropout = torch.nn.Dropout(dropout)
+        self.linear = torch.nn.Linear(hidden_size, num_labels)
 
     def forward(self, input_ids: torch.Tensor, attn_mask: torch.Tensor, token_type_ids: torch.Tensor) -> torch.Tensor:
         output = self.bert_model(
@@ -88,7 +106,7 @@ class BERTClass(torch.nn.Module):
 
 
 def get_tokenizer(config: BertExperimentConfig) -> BertTokenizer:
-    return BertTokenizer.from_pretrained(config.tokenizer_name, do_lower_case=config.do_lower_case)
+    return BertTokenizer.from_pretrained(config.model_name, do_lower_case=config.do_lower_case)
 
 
 def prepare_baseline_dataframe(
@@ -117,7 +135,7 @@ def filter_subset(
         subset_df = subset_df.loc[mask]
 
     subset_df = subset_df.reset_index(drop=True).copy()
-    print(f"{subset_name}: {len(subset_df)} rows")
+    logger.info("%s: %d rows", subset_name, len(subset_df))
     return subset_df
 
 
@@ -156,13 +174,13 @@ def build_dataloaders(
         training_set,
         batch_size=config.train_batch_size,
         shuffle=True,
-        num_workers=0,
+        num_workers=config.num_workers,
     )
     val_loader = DataLoader(
         validation_set,
         batch_size=config.valid_batch_size,
         shuffle=False,
-        num_workers=0,
+        num_workers=config.num_workers,
     )
     return train_df, val_df, train_loader, val_loader
 
@@ -172,7 +190,12 @@ def build_model_and_optimizer(
     num_labels: int,
     device: torch.device,
 ) -> tuple[BERTClass, torch.optim.Optimizer]:
-    model = BERTClass(num_labels=num_labels)
+    model = BERTClass(
+        model_name=config.model_name,
+        num_labels=num_labels,
+        dropout=config.dropout,
+        hidden_size=config.hidden_size,
+    )
     model.to(device)
     optimizer = torch.optim.Adam(
         params=model.parameters(),
@@ -186,6 +209,87 @@ def loss_fn(outputs: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
     return torch.nn.BCEWithLogitsLoss()(outputs, targets)
 
 
+def collect_epoch_metrics(
+    model: torch.nn.Module,
+    validation_loader: DataLoader,
+    device: torch.device,
+    threshold: float,
+    target_list: list[str],
+) -> dict[str, object]:
+    from code.metrics import evaluate_predictions
+
+    targets, probabilities = validate_multilabel(model, validation_loader, device)
+    evaluation = evaluate_predictions(targets, probabilities, threshold, target_list)
+
+    targets_array = evaluation["targets_array"]
+    outputs_array = evaluation["outputs_array"]
+    binary_true = evaluation["binary_metrics"]["true"]
+    binary_pred = evaluation["binary_metrics"]["pred"]
+
+    binary_precision, binary_recall, binary_f1, binary_support = precision_recall_fscore_support(
+        binary_true,
+        binary_pred,
+        average="binary",
+        zero_division=0,
+    )
+    micro_precision, micro_recall, micro_f1, _ = precision_recall_fscore_support(
+        targets_array,
+        outputs_array,
+        average="micro",
+        zero_division=0,
+    )
+    macro_precision, macro_recall, macro_f1, _ = precision_recall_fscore_support(
+        targets_array,
+        outputs_array,
+        average="macro",
+        zero_division=0,
+    )
+    weighted_precision, weighted_recall, weighted_f1, _ = precision_recall_fscore_support(
+        targets_array,
+        outputs_array,
+        average="weighted",
+        zero_division=0,
+    )
+    per_label_precision, per_label_recall, per_label_f1, per_label_support = precision_recall_fscore_support(
+        targets_array,
+        outputs_array,
+        average=None,
+        zero_division=0,
+    )
+
+    epoch_metrics: dict[str, object] = {
+        "threshold": threshold,
+        "exact_match_accuracy": float(evaluation["exact_match_accuracy"]),
+        "hamming_loss": float(evaluation["hamming_loss"]),
+        "jaccard_score": float(evaluation["jaccard_score"]),
+        "binary_precision": float(binary_precision),
+        "binary_recall": float(binary_recall),
+        "binary_f1": float(binary_f1),
+        "binary_support": int(np.sum(binary_true)),
+        "micro_precision": float(micro_precision),
+        "micro_recall": float(micro_recall),
+        "micro_f1": float(micro_f1),
+        "macro_precision": float(macro_precision),
+        "macro_recall": float(macro_recall),
+        "macro_f1": float(macro_f1),
+        "weighted_precision": float(weighted_precision),
+        "weighted_recall": float(weighted_recall),
+        "weighted_f1": float(weighted_f1),
+        "roc_auc_macro": float(evaluation["roc_data"]["roc_auc"]["macro"]),
+        "roc_auc_micro": float(evaluation["roc_data"]["roc_auc"]["micro"]),
+    }
+
+    for idx, label in enumerate(target_list):
+        epoch_metrics[f"label_accuracy__{label}"] = float(evaluation["per_label_accuracies"][label])
+        epoch_metrics[f"label_precision__{label}"] = float(per_label_precision[idx])
+        epoch_metrics[f"label_recall__{label}"] = float(per_label_recall[idx])
+        epoch_metrics[f"label_f1__{label}"] = float(per_label_f1[idx])
+        epoch_metrics[f"label_support__{label}"] = int(per_label_support[idx])
+        epoch_metrics[f"label_auc__{label}"] = float(evaluation["roc_data"]["roc_auc"][label])
+
+    return epoch_metrics
+
+
 def train_model(
     n_epochs: int,
     training_loader: DataLoader,
@@ -194,10 +298,13 @@ def train_model(
     optimizer: torch.optim.Optimizer,
     best_model_path: str,
     device: torch.device,
-) -> tuple[torch.nn.Module, list[float], list[float], list[int]]:
+    threshold: float,
+    target_list: list[str],
+) -> tuple[torch.nn.Module, list[float], list[float], list[int], list[dict[str, object]]]:
     training_losses: list[float] = []
     validation_losses: list[float] = []
     epochs_list: list[int] = []
+    epoch_metrics: list[dict[str, object]] = []
     valid_loss_min = np.inf
 
     for epoch in range(1, n_epochs + 1):
@@ -205,7 +312,7 @@ def train_model(
         valid_loss = 0.0
 
         model.train()
-        print(f"############# Epoch {epoch}: Training Start #############")
+        logger.info("Epoch %d: Training Start", epoch)
 
         train_iterator = tqdm(training_loader, desc=f"Epoch {epoch} [train]", leave=False)
         for data in train_iterator:
@@ -225,10 +332,10 @@ def train_model(
             train_iterator.set_postfix(loss=f"{loss.item():.4f}")
 
         train_loss /= len(training_loader)
-        print(f"############# Epoch {epoch}: Training End #############")
+        logger.info("Epoch %d: Training End", epoch)
 
         model.eval()
-        print(f"############# Epoch {epoch}: Validation Start #############")
+        logger.info("Epoch %d: Validation Start", epoch)
 
         with torch.no_grad():
             validation_iterator = tqdm(validation_loader, desc=f"Epoch {epoch} [valid]", leave=False)
@@ -244,29 +351,43 @@ def train_model(
                 validation_iterator.set_postfix(loss=f"{loss.item():.4f}")
 
         valid_loss /= len(validation_loader)
-        print(f"############# Epoch {epoch}: Validation End #############")
-        print(
-            "Epoch: {} \tAverage Training Loss: {:.6f} \tAverage Validation Loss: {:.6f}".format(
-                epoch, train_loss, valid_loss
-            )
+        logger.info("Epoch %d: Validation End", epoch)
+        logger.info(
+            "Epoch: %d \tAverage Training Loss: %.6f \tAverage Validation Loss: %.6f",
+            epoch, train_loss, valid_loss
         )
 
         training_losses.append(train_loss)
         validation_losses.append(valid_loss)
         epochs_list.append(epoch)
+        metrics = collect_epoch_metrics(
+            model=model,
+            validation_loader=validation_loader,
+            device=device,
+            threshold=threshold,
+            target_list=target_list,
+        )
+        metrics.update(
+            {
+                "epoch": epoch,
+                "train_loss": float(train_loss),
+                "validation_loss": float(valid_loss),
+            }
+        )
+        epoch_metrics.append(metrics)
 
         if valid_loss <= valid_loss_min:
-            print(f"Validation loss decreased ({valid_loss_min:.6f} --> {valid_loss:.6f}). Saving model ...")
+            logger.info("Validation loss decreased (%.6f --> %.6f). Saving model ...", valid_loss_min, valid_loss)
             torch.save(model.state_dict(), best_model_path)
             valid_loss_min = valid_loss
         else:
-            print("Early stopping")
+            logger.info("Early stopping")
             break
 
-        print(f"############# Epoch {epoch} Done #############\n")
+        logger.info("Epoch %d Done\n", epoch)
 
     model.load_state_dict(torch.load(best_model_path, map_location=device))
-    return model, training_losses, validation_losses, epochs_list
+    return model, training_losses, validation_losses, epochs_list, epoch_metrics
 
 
 def validate_multilabel(
@@ -339,6 +460,8 @@ def run_subset_experiment(
     config = config or BertExperimentConfig()
     target_list = target_list or DEFAULT_TARGET_LIST
 
+    set_seed(config.seed)
+
     working_df = df.copy()
     if subset_fn is not None:
         working_df = subset_fn(working_df).reset_index(drop=True)
@@ -352,7 +475,7 @@ def run_subset_experiment(
     )
     train_distribution, val_distribution = compute_distribution_classes(train_df, val_df, target_list)
     model, optimizer = build_model_and_optimizer(config, num_labels=len(target_list), device=device)
-    model, training_losses, validation_losses, epochs_list = train_model(
+    model, training_losses, validation_losses, epochs_list, epoch_metrics = train_model(
         n_epochs=config.epochs,
         training_loader=train_loader,
         validation_loader=val_loader,
@@ -360,6 +483,8 @@ def run_subset_experiment(
         optimizer=optimizer,
         best_model_path=best_model_path,
         device=device,
+        threshold=config.threshold,
+        target_list=target_list,
     )
 
     return {
@@ -374,4 +499,5 @@ def run_subset_experiment(
         "training_losses": training_losses,
         "validation_losses": validation_losses,
         "epochs_list": epochs_list,
+        "epoch_metrics": epoch_metrics,
     }

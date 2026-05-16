@@ -1,0 +1,29 @@
+\chapter{Dataset and Annotation}
+
+This chapter describes the dataset used in this work and the procedure adopted for its construction and enrichment. The experiments conducted in this thesis rely on the dataset introduced in the AI-CRAS framework, extended with manually annotated ambiguity labels.
+
+\section{The AI-CRAS Dataset}
+
+The original dataset was introduced by Casalicchio and Cotumaccio \cite{casalicchio2024aicras} to support the training and evaluation of machine learning models for the classification of cloud computing requirements. It was constructed by collecting sentences from publicly available Request for Proposal (RFP) documents related to cloud procurement, supplemented with examples generated using generative AI techniques. Each sentence was manually annotated according to a binary requirement label (requirement vs.\ non-requirement) and mapped to one of six cloud service categories: Compute, Data Handling, Network, Security Compliance, Management \& Monitoring, and Cloud Service Essentials.
+
+\section{Ambiguity Taxonomy}
+
+The annotation of ambiguity in this work follows the taxonomy established in the requirements engineering literature, which identifies five distinct types of ambiguity that commonly appear in natural language requirements:
+
+\begin{itemize}
+    \item \textbf{Lexical ambiguity}: a word or phrase carries multiple meanings depending on context (e.g., ``high availability'' may imply different service levels for different stakeholders).
+    \item \textbf{Syntactic ambiguity}: the grammatical structure of a sentence admits more than one valid parse, leading to different readings.
+    \item \textbf{Semantic ambiguity}: the logical content of a requirement can be interpreted differently by different stakeholders even when the syntax is unambiguous.
+    \item \textbf{Pragmatic ambiguity}: the intended meaning relies on implicit contextual knowledge not present in the text itself.
+    \item \textbf{Language-error ambiguity}: grammatical mistakes or typographical errors that obscure the intended meaning.
+\end{itemize}
+
+\section{Annotation Procedure}
+
+In order to support the analysis of ambiguity, the original dataset was enriched with additional manually annotated columns. A binary column \texttt{is\_ambiguous} was added to indicate whether a sentence contains any form of ambiguity. A further set of columns following the format \texttt{is\_\{type\}\_ambiguous} records the presence of each specific ambiguity category defined above.
+
+All annotations were produced manually to ensure labeling quality and consistency. [Inter-annotator agreement details to be added if applicable.]
+
+\section{Dataset Statistics}
+
+[To be completed: total sentence count, proportion of ambiguous sentences, distribution across ambiguity types, class balance across cloud categories.]

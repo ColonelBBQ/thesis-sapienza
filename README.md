@@ -1,23 +1,68 @@
 # Thesis Project
 
-This repository contains the code used for a thesis on ambiguity in cloud requirement classification with BERT and LLM-based disambiguation.
+Ambiguity-Aware Classification of Cloud Computing Requirements Using BERT and Large Language Models.
 
-## Main Files
+## Structure
 
-- [`main.ipynb`](/Users/claudiogiannini/Desktop/MSc Data Science/thesis/main.ipynb): main experiment notebook for preprocessing, training, evaluation, and analysis.
-- [`modules/bert_pipeline.py`](/Users/claudiogiannini/Desktop/MSc Data Science/thesis/modules/bert_pipeline.py): data preparation, tokenization, dataloaders, model definition, and training utilities.
-- [`modules/bert_evaluation.py`](/Users/claudiogiannini/Desktop/MSc Data Science/thesis/modules/bert_evaluation.py): validation metrics, reports, ROC data, and export helpers.
-- [`modules/bert_experiments.py`](/Users/claudiogiannini/Desktop/MSc Data Science/thesis/modules/bert_experiments.py): high-level experiment runners for comparing different dataframe subsets.
+```
+├── paper/                     # LaTeX thesis document
+│   ├── main.tex               # Master document
+│   ├── main-frn.tex           # Frontispiece
+│   ├── references.bib         # Bibliography
+│   ├── settings/              # Document configuration
+│   ├── frontmatter/           # Title page, abstract, quote
+│   ├── chapters/              # Numbered thesis chapters
+│   ├── backmatter/            # Appendix, acknowledgements
+│   ├── figures/               # Figures and images
+│   └── output/                # Compiled PDF (gitignored)
+├── code/                      # Python source modules
+│   ├── bert_pipeline.py       # Data, model, training pipeline
+│   ├── bert_evaluation.py     # Evaluation metrics and export
+│   ├── bert_experiments.py    # High-level experiment runners
+│   └── metrics.py             # Shared metric computations
+├── notebooks/                 # Jupyter notebooks
+│   └── main.ipynb             # Main experiment notebook
+├── scripts/                   # CLI tools
+│   └── deambiguify_dataset.py # LLM-based disambiguation
+├── data/                      # Datasets
+├── artifacts/                 # Experiment outputs
+├── references/                # Reference papers
+└── tests/                     # Test suite
+```
 
-## Data
+## Quick Start
 
-The main dataset is stored in [`data/dataframe.csv`](/Users/claudiogiannini/Desktop/MSc Data Science/thesis/data/dataframe.csv). Intermediate CSV files may be generated for inspection, but the notebook is designed to work mainly in memory.
+```bash
+# Install dependencies
+pip install -r requirements.txt
 
-## Goal
+# Or with pyproject.toml
+pip install -e .
 
-The workflow starts from a baseline BERT classifier, then supports experiments on:
-- removing ambiguous sentences
-- removing specific ambiguity categories
-- testing LLM-disambiguated versions of the dataset
+# Run the main notebook
+jupyter notebook notebooks/main.ipynb
 
-The modular structure is intended to make repeated experiments on different dataframe subsets easier and more consistent.
+# Disambiguate the dataset with an LLM
+export OPENAI_API_KEY="your-key"
+python scripts/deambiguify_dataset.py --input data/dataframe.csv --output data/dataframe_deambiguified.csv
+```
+
+## Experiments
+
+The main workflow is driven by `notebooks/main.ipynb`, which:
+1. Loads the AI-CRAS dataset with ambiguity annotations
+2. Prepares subsets (baseline, no-ambiguity, per-ambiguity-type, deambiguified)
+3. Trains and evaluates BERT classifiers on each subset
+4. Exports results to `artifacts/`
+
+The `code/` package provides reusable components:
+- `BertExperimentConfig` — all training hyperparameters in one place
+- `run_experiment()` — trains, evaluates, and exports results for a single dataset
+- `run_experiment_suite()` — runs multiple experiments and produces a comparison summary
+
+## Running Tests
+
+```bash
+pip install pytest
+python -m pytest tests/
+```

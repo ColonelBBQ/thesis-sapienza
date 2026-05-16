@@ -1,0 +1,70 @@
+\documentclass[a4paper,11pt,oneside,titlepage]{book}
+\input{paper/settings/Settings}
+
+\begin{document}
+
+%   FRONT MATTER
+\frontmatter
+\pagestyle{empty}
+
+%   TITLE PAGE (compile with: pdflatex -shell-escape main.tex)
+\input{paper/frontmatter/Titlepage}
+\clearpage
+
+%   QUOTE
+\input{paper/frontmatter/Quote}
+\newpage
+
+%   ABSTRACT
+\afterpage{\null\thispagestyle{empty}\clearpage}
+\input{paper/frontmatter/Abstract}
+
+\begin{singlespace}
+  \tableofcontents
+  \addcontentsline{toc}{chapter}{\listfigurename}
+  \listoffigures
+  \addcontentsline{toc}{chapter}{\listtablename}
+  \listoftables
+  \printnomenclature
+  \printglossaries
+\end{singlespace}
+
+%   MAIN MATTER
+\mainmatter
+\clearpage
+\pagestyle{fancy}
+\renewcommand{\chaptermark}[1]{\markright{\chaptername\ \thechapter.\ #1}{}}
+\renewcommand{\sectionmark}[1]{\markright{\thesection.\ #1}}
+\lhead{}
+\chead{}
+\rhead{\slshape \rightmark}
+\lfoot{Claudio Giannini}
+\cfoot{}
+\rfoot{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0.4pt}
+
+%   CHAPTERS
+\input{paper/chapters/01_Introduction}
+\input{paper/chapters/02_RelatedWork}
+\input{paper/chapters/03_DataCollection}
+\input{paper/chapters/04_Methodology}
+\input{paper/chapters/05_Experiments}
+\input{paper/chapters/06_Discussion}
+
+%   BACK MATTER
+\cleardoublepage
+\addcontentsline{toc}{chapter}{Bibliography}
+\printbibliography
+
+%   APPENDIX
+\cleardoublepage
+\appendix
+\input{paper/backmatter/Appendix}
+
+%   ACKNOWLEDGEMENTS
+\cleardoublepage
+\pagenumbering{gobble}
+\input{paper/backmatter/Acknowledgement}
+
+\end{document}

@@ -1,0 +1,35 @@
+\chapter{Literature Review}
+
+\section{Requirements Engineering and the AI-CRAS Framework}
+
+Requirements Engineering (RE) is the discipline concerned with eliciting, analysing, and specifying the conditions a system must satisfy to meet stakeholder needs. The quality of these specifications is a well-established determinant of project success: poorly written requirements are among the leading causes of cost overruns, system defects, and outright project failure \cite{sommerville2011}.
+
+The application of NLP and machine learning to automate requirements analysis has been an active research direction for over two decades. A systematic mapping study by Zhao et al.\ \cite{zhao2020nlp} surveyed more than two hundred studies on the topic, covering tasks such as classification, traceability, and inconsistency detection. Among these, requirement classification — distinguishing requirements from non-requirements, or mapping them to predefined categories — is one of the most studied problems, with supervised learning approaches consistently outperforming rule-based methods as labelled data grows.
+
+Building on this line of work, the AI-CRAS framework \cite{casalicchio2024aicras} proposed an automated pipeline for classifying cloud computing requirements. The approach fine-tunes a BERT model on a domain-specific dataset of sentences drawn from cloud procurement documents, annotated as either requirements or non-requirements and assigned to one of six cloud service categories. The model achieved a recall of 0.96 and an F1-score of 0.92 on the binary classification task, establishing a strong baseline for automated cloud requirement analysis.
+
+What AI-CRAS does not address is a problem that is endemic to requirements written in natural language: ambiguity. Even a well-performing classifier trained on clean data may degrade when applied to requirements that are vague, structurally unclear, or context-dependent. This question — whether ambiguity in the input affects model performance, and whether it can be mitigated — forms the central research gap this thesis addresses.
+
+\section{Ambiguity in Natural Language Requirements}
+
+The difficulty of poorly specified requirements is not simply a matter of quantity or coverage. A requirement can be present, correctly scoped, and still be ambiguous — open to more than one valid interpretation. This distinction matters because an ambiguous requirement can be correctly identified as a requirement by a classifier while still being fundamentally misunderstood by the system that acts on it. As Bano \cite{bano2015ambiguity} notes, ambiguity in RE is defined as ``having multiple interpretations despite the reader's knowledge of the RE context'', and is considered more intractable than other requirements defects such as incompleteness.
+
+The same work provides a structured taxonomy of the forms ambiguity takes in natural language requirements, summarising Berry's widely adopted classification:
+
+\begin{quote}
+Lexical ambiguity of a word arises when a word can have several different meanings. Syntactic ambiguity or structural ambiguity in a sentence arises when the sentence can be parsed in more than one way, resulting in more than one grammatical structure where each provides different meanings. Semantic ambiguity arises in a sentence when predicate logic of a sentence can lead to multiple interpretations, although there is no lexical, syntactic, or structural ambiguity. Language errors ambiguity is a grammatically wrong construction that is nevertheless understood and possibly in different ways due to the error. Pragmatic ambiguity is concerned with the relationship between the interpretations of a sentence and its context. \cite{bano2015ambiguity}
+\end{quote}
+
+These five categories — lexical, syntactic, semantic, language-error, and pragmatic ambiguity — form the taxonomy adopted in this work and are described in full in Chapter 3. Their relevance here is that they are not rare edge cases: Bano's mapping study found that 81\% of empirical work on requirements ambiguity focuses on detection alone, with very little attention to resolution. This thesis directly addresses that gap by testing whether automated resolution — via LLM rewriting — can improve downstream classification performance.
+
+\section{BERT for Requirements Classification}
+
+The transformer architecture \cite{vaswani2017attention} replaced recurrent networks with a self-attention mechanism that allows every token in a sequence to attend to all others simultaneously, enabling richer contextual representations. BERT \cite{devlin2019bert}, built on this foundation, is pre-trained on large text corpora using masked language modelling and next-sentence prediction, producing representations that can be fine-tuned for downstream classification tasks with relatively little labelled data.
+
+BERT is used in this thesis for the same reason it was used in AI-CRAS: it is the established baseline for this specific classification problem, and direct comparability with prior results requires using the same model family. Fine-tuned BERT classifiers have demonstrated strong performance across a range of RE tasks, and their behaviour on ambiguous inputs is the primary object of study in this work.
+
+\section{Large Language Models for Disambiguation and Classification}
+
+The GPT family of large language models \cite{openai2023gpt4} introduced a different mode of applying language models to NLP tasks: rather than fine-tuning on labelled data, these models are prompted with natural language instructions and respond accordingly. This makes them natural candidates for requirement disambiguation — given an ambiguous sentence, an LLM can be asked to rewrite it in clearer terms while preserving the original intent, without requiring any task-specific training.
+
+Beyond rewriting, LLMs have been shown to perform classification directly through prompting. Brown et al.\ demonstrated that GPT-3 can perform few-shot classification by conditioning on a small number of labelled examples provided in the prompt \cite{brown2020gpt3}. Wei et al.\ showed that instruction-tuned models generalise to unseen classification tasks in zero-shot settings \cite{wei2022flan}. Whether this general capability extends to the specific and technical domain of cloud requirement classification — and whether it is competitive with a fine-tuned BERT model — is what RQ3 investigates.

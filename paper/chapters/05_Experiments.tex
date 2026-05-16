@@ -1,0 +1,35 @@
+\chapter{Experimental Evaluation}
+
+This chapter presents the results of the four experimental scenarios designed to answer the three research questions. Each experiment is described in terms of its setup, the results obtained, and a brief interpretation.
+
+\section{Experimental Setup}
+
+[To be completed: hardware, model versions (BERT variant, LLM), training hyperparameters, random seeds, dataset splits used across all experiments.]
+
+\section{Baseline: BERT on the Full Dataset}
+
+[To be completed: results of fine-tuned BERT on the complete original dataset, both binary classification and multi-label category classification. Establishes the performance reference for all subsequent comparisons.]
+
+\section{RQ1 --- Effect of Ambiguity on BERT Classification}
+
+[To be completed: results of BERT trained and/or evaluated on the subset of unambiguous sentences. Comparison against baseline to assess whether removing ambiguous examples improves or changes performance. Breakdown by ambiguity type if applicable.]
+
+\section{RQ2 --- BERT on LLM-Disambiguated Sentences}
+
+[To be completed: results of BERT evaluated on the version of the dataset where ambiguous sentences have been rewritten by the LLM. Comparison against baseline and RQ1 results.]
+
+\section{RQ3 --- LLM as Direct Classifier}
+
+[To be completed: overall framing of the LLM-as-classifier evaluation and comparison with BERT results.]
+
+\subsection{Zero-Shot Setting}
+
+[To be completed: results of prompting the LLM to classify sentences with no examples provided. Performance on binary and multi-label tasks.]
+
+\subsection{Few-Shot Setting}
+
+[To be completed: results of prompting the LLM with a small number of labeled examples. Performance on binary and multi-label tasks. Comparison with zero-shot.]
+
+\section{Cross-Experiment Comparison}
+
+[To be completed: summary table comparing all four experimental scenarios across key metrics. Discussion of which approach performs best overall and which performs best per ambiguity type.]

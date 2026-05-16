@@ -1,0 +1,59 @@
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[english]{babel}
+\usepackage{geometry}
+\usepackage{setspace}
+\usepackage{fancyhdr}
+\usepackage{afterpage}
+\usepackage{hyperref}
+\usepackage{url}
+\usepackage{color}
+\usepackage{xcolor}
+\usepackage{enumerate}
+\usepackage{enumitem}
+\usepackage{graphicx}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage[bottom]{footmisc}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{caption}
+\usepackage{float}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{listings}
+\usepackage[swapnames,norules,nouppercase]{frontespizio}
+\usepackage[intoc]{nomencl}
+\usepackage[acronym,toc,nomain,nopostdot,nonumberlist]{glossaries}
+\usepackage[backend=biber, style=numeric]{biblatex}
+\addbibresource{paper/references.bib}
+\usepackage{verbatim}
+\usepackage{blindtext}
+\usepackage{calligra}
+
+\geometry{a4paper,top=2.5cm,bottom=2.5cm,left=2cm,right=2cm,heightrounded,bindingoffset=5mm}
+\linespread{1.2}
+
+\fancypagestyle{plain}{%
+    \fancyhf{}
+    \fancyfoot[R]{\thepage}
+    \renewcommand{\headrulewidth}{0pt}
+    \renewcommand{\footrulewidth}{0.4pt}
+}
+
+\captionsetup{font=small,labelfont=bf,textfont=normalfont,tableposition=bottom,figureposition=bottom}
+\hypersetup{colorlinks=true, linkcolor=black, citecolor=black, filecolor=black, urlcolor=black}
+
+\definecolor{sapienza}{RGB}{130,36,51}
+\definecolor{cust1}{RGB}{85,85,85}
+\definecolor{cust2}{RGB}{212,212,212}
+
+\makenomenclature
+\makeglossaries
+
+\newenvironment{dedication}
+{
+  \phantom{.}
+  \vspace{13cm}
+  \begin{quote} \begin{flushright}}
+{\end{flushright} \end{quote}}

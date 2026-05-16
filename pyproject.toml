@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "thesis-ambiguity-bert"
+version = "0.1.0"
+description = "Ambiguity-Aware Classification of Cloud Computing Requirements Using BERT and Large Language Models"
+requires-python = ">=3.10"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [
+    { name = "Claudio Giannini" },
+]
+keywords = ["nlp", "bert", "requirements-engineering", "ambiguity", "cloud-computing"]
+
+[tool.setuptools]
+py-modules = []
+
+[tool.setuptools.packages.find]
+include = ["code*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
