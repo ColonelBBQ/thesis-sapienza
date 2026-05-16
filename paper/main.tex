@@ -1,5 +1,5 @@
 \documentclass[a4paper,11pt,oneside,titlepage]{book}
-\input{paper/settings/Settings}
+\input{settings/Settings}
 
 \begin{document}
 
@@ -8,16 +8,16 @@
 \pagestyle{empty}
 
 %   TITLE PAGE (compile with: pdflatex -shell-escape main.tex)
-\input{paper/frontmatter/Titlepage}
+\input{frontmatter/Titlepage}
 \clearpage
 
 %   QUOTE
-\input{paper/frontmatter/Quote}
+\input{frontmatter/Quote}
 \newpage
 
 %   ABSTRACT
 \afterpage{\null\thispagestyle{empty}\clearpage}
-\input{paper/frontmatter/Abstract}
+\input{frontmatter/Abstract}
 
 \begin{singlespace}
   \tableofcontents
@@ -45,12 +45,12 @@
 \renewcommand{\footrulewidth}{0.4pt}
 
 %   CHAPTERS
-\input{paper/chapters/01_Introduction}
-\input{paper/chapters/02_RelatedWork}
-\input{paper/chapters/03_DataCollection}
-\input{paper/chapters/04_Methodology}
-\input{paper/chapters/05_Experiments}
-\input{paper/chapters/06_Discussion}
+\input{chapters/01_Introduction}
+\input{chapters/02_RelatedWork}
+\input{chapters/03_DataCollection}
+\input{chapters/04_Methodology}
+\input{chapters/05_Experiments}
+\input{chapters/06_Discussion}
 
 %   BACK MATTER
 \cleardoublepage
@@ -60,11 +60,11 @@
 %   APPENDIX
 \cleardoublepage
 \appendix
-\input{paper/backmatter/Appendix}
+\input{backmatter/Appendix}
 
 %   ACKNOWLEDGEMENTS
 \cleardoublepage
 \pagenumbering{gobble}
-\input{paper/backmatter/Acknowledgement}
+\input{backmatter/Acknowledgement}
 
 \end{document}
