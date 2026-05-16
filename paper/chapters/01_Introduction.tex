@@ -5,16 +5,16 @@ The classification of cloud computing requirements from natural language documen
 
 What AI-CRAS does not examine is the effect of \textit{ambiguity}. Many requirements are phrased in ways that allow more than one interpretation — due to vague wording, grammatical structure, or missing context. Natural language requirements can exhibit several distinct forms of ambiguity: lexical, syntactic, semantic, pragmatic, and language-error (described in detail in Chapter 3). These are common in real-world requirement documents, but their effect on model performance has not been studied.
 
-This thesis tests whether ambiguity matters for classification. Using the same AI-CRAS dataset, each sentence is manually annotated with ambiguity labels. Four experiments are then run: BERT on the full original dataset as a baseline, BERT restricted to the unambiguous subset, BERT on LLM-rewritten versions of the ambiguous sentences, and an LLM used directly as a classifier in both zero-shot and few-shot settings.
+This thesis tests whether ambiguity matters for classification — and whether certain categories are more vulnerable to it than others. Using the same AI-CRAS dataset, each sentence is manually annotated with ambiguity labels. Four experiments are then run: BERT on the full original dataset as a baseline, BERT restricted to the unambiguous subset, BERT on LLM-rewritten versions of the ambiguous sentences, and an LLM used directly as a classifier in both zero-shot and few-shot settings. For each experiment, results are broken down by the six cloud service categories to assess whether ambiguity affects them uniformly.
 
 The three research questions are:
 
 \begin{itemize}
-    \item \textbf{RQ1:} Does ambiguity negatively affect BERT classification performance?
-    \item \textbf{RQ2:} Can LLM-based rewriting of ambiguous sentences improve BERT's accuracy?
+    \item \textbf{RQ1:} Does ambiguity negatively affect BERT classification performance, and which of the six cloud service categories is most affected?
+    \item \textbf{RQ2:} Can LLM-based rewriting of ambiguous sentences improve BERT's accuracy — both overall and for the most ambiguity-sensitive categories?
     \item \textbf{RQ3:} Can an LLM used directly as a classifier match or exceed BERT?
 \end{itemize}
 
-The main contributions of this thesis are: an ambiguity-annotated extension of the AI-CRAS dataset; an empirical analysis of how ambiguity affects BERT-based classification; and a comparative evaluation of LLMs as both a disambiguation tool and a direct classifier.
+The main contributions of this thesis are: an ambiguity-annotated extension of the AI-CRAS dataset; an empirical analysis of how ambiguity affects BERT-based classification, including per-category breakdowns; and a comparative evaluation of LLMs as both a disambiguation tool and a direct classifier.
 
 The remainder of this thesis is structured as follows. Chapter 2 reviews the literature. Chapter 3 describes the dataset and the annotation procedure. Chapter 4 covers the methodology. Chapter 5 presents the experimental results. Chapter 6 discusses the findings and concludes.
