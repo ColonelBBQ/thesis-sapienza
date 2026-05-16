@@ -1,29 +1,138 @@
 \chapter{Dataset and Annotation}
 
-This chapter describes the dataset used in this work and the procedure adopted for its construction and enrichment. The experiments conducted in this thesis rely on the dataset introduced in the AI-CRAS framework, extended with manually annotated ambiguity labels.
+This chapter describes the datasets used in the experiments: the original AI-CRAS corpus, the ambiguity annotations added to it, and the LLM-deambiguified variants derived from it.
 
 \section{The AI-CRAS Dataset}
 
-The original dataset was introduced by Casalicchio and Cotumaccio \cite{casalicchio2024aicras} to support the training and evaluation of machine learning models for the classification of cloud computing requirements. It was constructed by collecting sentences from publicly available Request for Proposal (RFP) documents related to cloud procurement, supplemented with examples generated using generative AI techniques. Each sentence was manually annotated according to a binary requirement label (requirement vs.\ non-requirement) and mapped to one of six cloud service categories: Compute, Data Handling, Network, Security Compliance, Management \& Monitoring, and Cloud Service Essentials.
+The starting point for all experiments is the dataset introduced by Casalicchio and Cotumaccio \cite{casalicchio2024aicras}. It consists of 2,267 sentences extracted from publicly available Request for Proposal (RFP) documents related to cloud procurement, supplemented with examples generated via GPT-4 to increase coverage of the target domain. Each sentence was independently examined by two annotators and classified along two dimensions:
+
+\begin{itemize}
+    \item A binary label indicating whether the sentence constitutes a cloud requirement (\texttt{goal} = 1) or not (\texttt{goal} = 0). This is the label used for the binary classification task central to AI-CRAS; its distribution is shown in Figure~\ref{fig:goal_distribution}.
+    \item A set of six one-hot encoded indicators assigning the sentence to one or more cloud service categories drawn from the AI-CRAS ontology: \texttt{compute}, \texttt{data\_handling}, \texttt{network}, \texttt{security\_compliance}, \texttt{management\_monitoring}, and \texttt{cloud\_service\_essentials}. These form the targets for the multi-label classification experiments.
+\end{itemize}
+
+Disagreements between the two annotators led to exclusion of the disputed sentence from the final dataset, preserving consistency. Figure~\ref{fig:category_counts} shows the number of positive labels for each cloud service category, and Table~\ref{tab:label_distribution} reports the exact figures.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.48\textwidth]{figures/3_1.png}
+\caption{Distribution of the binary requirement label across the AI-CRAS dataset (\texttt{goal = 1}: requirement; \texttt{goal = 0}: non-requirement).}
+\label{fig:goal_distribution}
+\end{figure}
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.80\textwidth]{figures/3_2.png}
+\caption{Number of sentences labelled with each cloud service category.}
+\label{fig:category_counts}
+\end{figure}
+
+\begin{table}[h]
+\centering
+\caption{Distribution of cloud service categories in the AI-CRAS dataset.}
+\label{tab:label_distribution}
+\begin{tabular}{lcc}
+\toprule
+Category & Count & Proportion \\
+\midrule
+Management \& Monitoring  & 595 & 29.0\% \\
+Security \& Compliance    & 390 & 19.0\% \\
+Cloud Service Essentials  & 362 & 17.6\% \\
+Compute                   & 283 & 13.8\% \\
+Network                   & 233 & 11.3\% \\
+Data Handling             & 191 &  9.3\% \\
+\midrule
+Total sentences           & 2,267 & — \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Each sentence may carry more than one label (multi-label), so the proportions do not sum to 100\%. Management \& Monitoring is the most frequent category, while Data Handling is the least; no category is extremely underrepresented, and the overall distribution is sufficiently balanced to avoid severe class imbalance issues during training.
 
 \section{Ambiguity Taxonomy}
 
-The annotation of ambiguity in this work follows the taxonomy established in the requirements engineering literature, which identifies five distinct types of ambiguity that commonly appear in natural language requirements:
+The ambiguity annotations follow the five-way taxonomy established in the requirements engineering literature by Berry and systematised by Bano \cite{bano2015ambiguity}. The five types, with representative examples drawn from the dataset, are:
 
-\begin{itemize}
-    \item \textbf{Lexical ambiguity}: a word or phrase carries multiple meanings depending on context (e.g., ``high availability'' may imply different service levels for different stakeholders).
-    \item \textbf{Syntactic ambiguity}: the grammatical structure of a sentence admits more than one valid parse, leading to different readings.
-    \item \textbf{Semantic ambiguity}: the logical content of a requirement can be interpreted differently by different stakeholders even when the syntax is unambiguous.
-    \item \textbf{Pragmatic ambiguity}: the intended meaning relies on implicit contextual knowledge not present in the text itself.
-    \item \textbf{Language-error ambiguity}: grammatical mistakes or typographical errors that obscure the intended meaning.
-\end{itemize}
+\begin{description}
+    \item[Lexical ambiguity] A word or phrase carries multiple meanings depending on context. \textit{Example:} ``The database server storage has to be provided on high speed disks (SSD's) for better performance'' — ``high speed'' and ``better performance'' are vague and admit multiple quantitative interpretations.
+    \item[Syntactic ambiguity] The grammatical structure of a sentence admits more than one valid parse, leading to different readings. \textit{Example:} ``CSP / Bidder to conduct vulnerability assessment scanning of the Portal/Website for every 1 hour till the website is LIVE for rendering services'' — the attachment of ``for every 1 hour'' is ambiguous between modifying ``scanning'' and ``LIVE''.
+    \item[Semantic ambiguity] The logical content can be interpreted in multiple ways even when the syntax is unambiguous. \textit{Example:} ``It is the prime responsibility of CSP to ensure continuity of service at all times of the Agreement including exit management period (may be one month)'' — the scope of ``at all times of the Agreement'' interacts ambiguously with ``exit management period''.
+    \item[Language-error ambiguity] Grammatical mistakes or typographical errors that obscure the intended meaning. \textit{Example:} ``All the equipment's/Devices in the path have to be in HA mode'' — the apostrophe in ``equipment's'' and the undefined acronym ``HA'' introduce uncertainty about the intended specification.
+    \item[Pragmatic ambiguity] The intended meaning relies on implicit contextual knowledge not present in the text. \textit{Example:} ``This will include system maintenance windows'' — without a definition of what constitutes a maintenance window, the requirement is underspecified.
+\end{description}
 
 \section{Annotation Procedure}
 
-In order to support the analysis of ambiguity, the original dataset was enriched with additional manually annotated columns. A binary column \texttt{is\_ambiguous} was added to indicate whether a sentence contains any form of ambiguity. A further set of columns following the format \texttt{is\_\{type\}\_ambiguous} records the presence of each specific ambiguity category defined above.
+To support the experiments on ambiguity, the AI-CRAS dataset was enriched with two additional manually annotated columns:
 
-All annotations were produced manually to ensure labeling quality and consistency. [Inter-annotator agreement details to be added if applicable.]
+\begin{itemize}
+    \item \texttt{ambuiguity}: a binary indicator set to 1 if the sentence contains any form of ambiguity and 0 otherwise.
+    \item \texttt{ambiguity\_type}: an integer encoding the specific ambiguity category, with values 1--5 corresponding to lexical, syntactic, semantic, language-error, and pragmatic ambiguity respectively. A value of 0 indicates no ambiguity.
+\end{itemize}
+
+All annotations were produced manually by examining each sentence against the taxonomy definitions above. The annotation was conducted in a single pass, with ambiguous sentences receiving exactly one type label corresponding to the dominant form of ambiguity present, even if multiple types could arguably coexist.
+
+\section{LLM-Deambiguified Dataset}
+
+A second dataset was generated by processing the annotated corpus through a large language model with the goal of rewriting ambiguous sentences into clearer, more concrete forms. The procedure, described in full in Chapter~4, used GPT\textsubscript{4o} with a structured prompt to produce a disambiguated version of each sentence. The output preserves the original row order and copies unambiguous sentences verbatim, yielding a parallel dataset in which every ambiguous sentence has a rewritten counterpart in the column \texttt{deambiguified\_description}. This dataset makes it possible to run the same BERT classifier on both the original and the disambiguated versions and directly compare performance.
 
 \section{Dataset Statistics}
 
-[To be completed: total sentence count, proportion of ambiguous sentences, distribution across ambiguity types, class balance across cloud categories.]
+Of the 2,267 sentences in the corpus, 689 (30.4\%) are annotated as ambiguous. Figure~\ref{fig:ambiguity_pie} shows this split, and Table~\ref{tab:ambiguity_distribution} breaks it down by ambiguity type.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.48\textwidth]{figures/3_3.png}
+\caption{Distribution of ambiguous and non-ambiguous sentences in the annotated dataset.}
+\label{fig:ambiguity_pie}
+\end{figure}
+
+\begin{table}[h]
+\centering
+\caption{Distribution of ambiguity types in the annotated dataset.}
+\label{tab:ambiguity_distribution}
+\begin{tabular}{lcc}
+\toprule
+Ambiguity Type & Count & \% of Ambiguous \\
+\midrule
+Lexical          & 581 & 84.3\% \\
+Pragmatic        & 61  &  8.9\% \\
+Semantic         & 28  &  4.1\% \\
+Language-error   & 17  &  2.5\% \\
+Syntactic        &  2  &  0.3\% \\
+\midrule
+Total ambiguous  & 689 & 100\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Lexical ambiguity is by far the most common type, accounting for over four-fifths of all ambiguous sentences. This reflects the nature of RFP language, where vague qualitative terms (``high speed'', ``better performance'', ``adequate load balancers'') are routinely used without quantitative specification. Syntactic ambiguity is the rarest, which is consistent with the formal, template-driven style typical of procurement documents.
+
+Importantly, ambiguity is not uniformly distributed across the six cloud service categories. Figure~\ref{fig:ambiguity_by_category} visualises the absolute counts, and Table~\ref{tab:ambiguity_rate} reports the proportion of ambiguous sentences within each category.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.85\textwidth]{figures/3_4.png}
+\caption{Stacked breakdown of ambiguous and non-ambiguous sentences per cloud service category.}
+\label{fig:ambiguity_by_category}
+\end{figure}
+
+\begin{table}[h]
+\centering
+\caption{Proportion of ambiguous sentences per cloud service category.}
+\label{tab:ambiguity_rate}
+\begin{tabular}{lccc}
+\toprule
+Category & Ambiguous & Total & Rate \\
+\midrule
+Cloud Service Essentials  & 159 & 362 & 43.9\% \\
+Data Handling             &  76 & 191 & 39.8\% \\
+Management \& Monitoring  & 185 & 595 & 31.1\% \\
+Compute                   &  81 & 283 & 28.6\% \\
+Network                   &  65 & 233 & 27.9\% \\
+Security \& Compliance    &  92 & 390 & 23.6\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Cloud Service Essentials and Data Handling exhibit the highest ambiguity rates (43.9\% and 39.8\%), suggesting that requirements in these categories are particularly prone to vague and underspecified phrasing. Security \& Compliance requirements are the least ambiguous (23.6\%), likely because security-related clauses in procurement documents tend to reference specific standards and certifications. These per-category differences motivate the experimental design in Chapter~4, where classification performance is evaluated both globally and broken down by category.
