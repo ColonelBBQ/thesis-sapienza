@@ -1,27 +1,124 @@
 \chapter{Methodology}
 
-This chapter describes the three methodological approaches used in the experimental evaluation: the BERT classification pipeline used as the primary classifier, the LLM-based disambiguation strategy applied to ambiguous requirements, and the LLM direct classification setup evaluated in zero-shot and few-shot configurations.
+This chapter describes the three components of the experimental pipeline: the BERT-based classifier that serves as the primary model under test, the LLM-based disambiguation procedure used to produce clarified variants of ambiguous sentences, and the LLM direct classification setup evaluated as an alternative to BERT. The chapter closes with the full experimental design, defining the dataset subsets on which each component is evaluated.
 
 \section{BERT Classification Pipeline}
 
-[To be completed: description of the BERT variant used, fine-tuning procedure, training data split, hyperparameters, hardware setup.]
+The classifier follows the architecture and configuration established by the AI-CRAS framework~\cite{casalicchio2024aicras}, adopted unchanged to ensure direct comparability of results.
+
+\subsection{Model Architecture}
+
+The model is built on BERT\textsubscript{BASE-UNCASED}~\cite{devlin2019bert}, a 12-layer transformer encoder with 768-dimensional hidden representations and 12 attention heads, pre-trained on English text with a vocabulary of 30,522 WordPiece tokens. The pre-trained encoder is augmented with two task-specific layers: a dropout layer with rate 0.3 for regularisation, and a linear layer that maps the pooled 768-dimensional output of the \texttt{[CLS]} token to six logits, one for each cloud service category. The six categories are treated as independent binary classification targets (multi-label), so the model can assign zero, one, or several labels to any given sentence.
+
+The loss function is binary cross-entropy with logits (\texttt{BCEWithLogitsLoss}), which combines a sigmoid activation with binary cross-entropy in a numerically stable single operation. Training uses the Adam optimiser with a learning rate of $3\times10^{-5}$ and weight decay of $10^{-6}$. No learning rate scheduling is applied.
+
+\subsection{Tokenization and Preprocessing}
+
+Input sentences are tokenised using the BERT WordPiece tokenizer in its uncased variant, converting all text to lowercase. Each sentence is padded or truncated to a fixed length of 300 tokens—the same limit used in AI-CRAS, sufficient to cover the longest sentences in the dataset. Special tokens \texttt{[CLS]} and \texttt{[SEP]} are prepended and appended respectively, and an attention mask distinguishes real tokens from padding.
+
+\subsection{Training Procedure}
+
+The dataset is split into training (85\%) and validation (15\%) partitions using stratified random sampling with seed 42, following the AI-CRAS protocol. Training proceeds for a maximum of 5 epochs with a batch size of 16, using full-batch validation after each epoch. An early stopping mechanism halts training if validation loss does not decrease between consecutive epochs, and the model checkpoint with the lowest validation loss is retained for evaluation.
+
+All experiments are run on an Apple MPS (Metal Performance Shaders) GPU, with PyTorch as the deep learning framework. Both the training and the evaluation results are fully reproducible given the same seed and hardware.
+
+\subsection{Inference and Threshold}
+
+At inference time, the model outputs six logits per sentence, which are passed through a sigmoid function to obtain probabilities in $[0, 1]$. A sentence is considered to carry a given label if the corresponding probability exceeds the threshold of $0.20$, the value used by AI-CRAS. This threshold was chosen in the original work to maximise recall without an excessive cost in precision, and is preserved here for consistency.
+
+\subsection{Evaluation Metrics}
+
+For the binary task (requirement \textit{vs.} non-requirement), a sentence is classified as a requirement if it receives at least one label above the threshold. Standard precision, recall, and F1-score are reported.
+
+For the multi-label task, the following metrics are computed:
+
+\begin{itemize}
+    \item \textbf{Exact match accuracy}: the fraction of sentences for which the predicted label set exactly matches the ground truth.
+    \item \textbf{Hamming loss}: the fraction of individual label predictions that are incorrect (lower is better).
+    \item \textbf{Jaccard score}: the size of the intersection divided by the size of the union of predicted and true label sets, macro-averaged across labels.
+    \item \textbf{Precision, recall, F1-score} at three aggregation levels:
+    \begin{itemize}
+        \item \textit{Micro-averaged}: contributions of all labels pooled together, giving equal weight to every prediction.
+        \item \textit{Macro-averaged}: per-label scores averaged with equal weight, so that all six categories contribute equally regardless of frequency.
+        \item \textit{Per-label}: a separate score for each of the six categories, enabling identification of which categories are most affected by ambiguity.
+    \end{itemize}
+    \item \textbf{ROC curves and AUC}: receiver operating characteristic curves are plotted per label, and the area under the curve is computed per label, as well as for the micro and macro averages, providing a threshold-independent measure of discriminative ability.
+\end{itemize}
 
 \section{LLM-Based Disambiguation}
 
-[To be completed: which LLM was used, prompting strategy, how semantic meaning was preserved, example prompt, post-processing of outputs.]
+To test whether ambiguity can be mitigated by rewriting, an LLM-based disambiguation procedure was applied to the annotated dataset. The goal is to produce, for each ambiguous sentence, a version that preserves the original meaning while removing vagueness through the addition of concrete, measurable clarifications.
+
+\subsection{Model and Prompting Strategy}
+
+    The disambiguation uses GPT\textsubscript{5.4-mini} (OpenAI), accessed via the chat completions API with temperature set to 0 to maximise determinism and reproducibility. The model receives a detailed system prompt that specifies:
+
+\begin{itemize}
+    \item The task: for every row where the ambiguity flag is 1, rewrite the sentence into a new field; for rows where it is not, copy the original sentence verbatim with no changes.
+    \item Core constraints: preserve the exact original meaning; only clarify ambiguity; add measurable values, technical specifics, or concrete constraints — preferably in parenthetical form.
+    \item Allowed clarification patterns with realistic generic values (e.g., ``high speed'' $\rightarrow$ ``high speed (e.g., 100 MB/s throughput)''; ``secure'' $\rightarrow$ ``secure (e.g., AES-256 encryption at rest, TLS 1.3 in transit)'').
+    \item Strict anti-laziness rules: no vague phrases, every rewritten sentence must include a concrete clarification, and varied but realistic values should be used across rows.
+    \item Output format: valid CSV with two columns — \texttt{original} and \texttt{deambiguified\_description} — preserving row order and quoting every field.
+\end{itemize}
+
+The complete prompt is reproduced in Appendix~A.
+
+\subsection{Batch Processing and Validation}
+
+The dataset is processed in chunks of 10 rows to keep each API call within context length limits while allowing the prompt to remain detailed. Each chunk is sent independently, and the returned CSV is validated before proceeding to the next chunk. Validation checks that: (i) the CSV is syntactically valid and contains exactly the two expected columns; (ii) the number of returned rows matches the number of input rows; and (iii) the original-text column preserves each input sentence exactly, in order. If any check fails, the chunk is retried up to three times with an auto-generated repair prompt that includes the validation error and the previous (invalid) output. After the first successful parse, an additional verification step compares the returned originals to the input originals; if they differ, a second repair cycle is triggered to fix the order or content.
+
+Non-ambiguous sentences are retained verbatim. The result is a parallel dataset in which every row of the original corpus has a counterpart in the column \texttt{deambiguified\_description}, permitting side-by-side comparison.
 
 \section{LLM as Direct Classifier}
 
-[To be completed: model selection rationale, prompt structure for classification.]
+Beyond rewriting, LLMs can perform classification directly through prompting, bypassing the BERT pipeline entirely. This configuration is evaluated to determine whether a general-purpose model, instructed in natural language, can approach or exceed the performance of the domain-specific fine-tuned classifier.
 
 \subsection{Zero-Shot Classification}
 
-[To be completed: prompt design, how class labels were communicated to the model with no examples.]
+In the zero-shot setting, the model receives the sentence to classify, a definition of each of the six cloud service categories, and an instruction to return the applicable labels. No labelled examples are provided. The prompt includes the six category names with one-line descriptions drawn from the AI-CRAS ontology, and asks the model to output labels in a structured format (e.g., a JSON list). The same prompt also asks the model to classify each sentence as a requirement or non-requirement for the binary task.
 
 \subsection{Few-Shot Classification}
 
-[To be completed: number of examples per class, selection strategy for examples, prompt structure.]
+In the few-shot setting, the prompt is augmented with a set of labelled examples selected from the training partition. A small number of sentences (e.g., 2--3) per category, balanced across the six labels, are prepended to the instruction as demonstrations. The examples are chosen to be unambiguous (ambiguity flag = 0) to avoid confusing the model during in-context learning. The same output format and binary classification instruction are retained.
 
-\section{Evaluation Metrics}
+\section{Experimental Design}
 
-All experiments are evaluated using precision, recall, and F1-score. For the binary classification task (requirement vs.\ non-requirement) standard macro-averaged metrics are reported. For the multi-label cloud category classification task, per-category and macro-averaged scores are reported to capture performance variation across categories.
+The classifiers are evaluated on a family of dataset subsets designed to isolate the effect of ambiguity and to measure the contribution of disambiguation.
+
+\subsection{Baseline}
+
+The \textbf{baseline} subset consists of the full dataset with all 709 sentences, containing both ambiguous and non-ambiguous examples. This reproduces the AI-CRAS configuration and serves as the reference against which all other conditions are compared.
+
+\subsection{No-Ambiguity Subset}
+
+A second subset, \textbf{no-ambiguity}, excludes all sentences flagged as ambiguous (\texttt{ambuiguity = 1}), leaving only the unambiguous sentences. This tests the hypothesis that training and evaluating exclusively on clear sentences improves performance.
+
+\subsection{Deambiguified Subset}
+
+A third subset, \textbf{deambiguified}, is derived from the LLM-rewritten dataset. Every ambiguous sentence is replaced by its LLM-rewritten counterpart, while non-ambiguous sentences are kept unchanged. This tests whether disambiguation improves classification performance.
+
+\subsection{Per-Category Analysis}
+
+Every experiment reports metrics not only globally but also broken down by the six cloud service categories. This per-category analysis is motivated by the finding in Chapter~3 that ambiguity rates vary substantially across categories (from 23.6\% for Security \& Compliance to 43.9\% for Cloud Service Essentials), and makes it possible to determine whether ambiguity degrades performance uniformly or whether some categories are disproportionately affected.
+
+Table~\ref{tab:experiment_overview} summarises all experimental conditions.
+
+\begin{table}[h]
+\centering
+\caption{Overview of experimental conditions.}
+\label{tab:experiment_overview}
+\begin{tabular}{lll}
+\toprule
+Condition & Dataset & Classifier \\
+\midrule
+Baseline      & Full original                  & BERT \\
+No ambiguity  & Unambiguous only               & BERT \\
+Deambiguified & All ambiguous rewritten        & BERT \\
+\midrule
+Zero-shot     & Full original                  & GPT\textsubscript{5.4-mini} \\
+Few-shot      & Full original                  & GPT\textsubscript{5.4-mini} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+All BERT experiments are run with the same hyperparameter configuration and the same random seed (42) to ensure that performance differences across conditions are attributable solely to the data, not to training stochasticity.

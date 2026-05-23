@@ -2,38 +2,87 @@
 
 \section{The AI-CRAS Baseline: Cloud Requirement Classification}
 
-The AI-CRAS framework \cite{casalicchio2024aicras} proposes an AI-driven methodology for automating the analysis and specification of cloud computing requirements expressed in natural language. It addresses a recognised gap in the literature: while substantial research exists on NLP-assisted requirements engineering for generic software systems and for security requirements, little work targets the cloud domain specifically, where requirements span a heterogeneous mix of functional and non-functional concerns across IaaS, PaaS, and SaaS service models.
+The AI-CRAS framework \cite{casalicchio2024aicras} proposes an AI-driven methodology for automating the analysis and specification of cloud computing requirements expressed in natural language. It is the central reference point for this thesis: its ontology, dataset, model architecture, and hyperparameter configuration are adopted directly, and its published results serve as the benchmark against which all experiments in this work are measured.
 
-The methodology is structured into six phases: definition of a cloud service ontology, fine-tuning of a BERT-based classifier, automatic extraction of key sentences from requirement documents, classification of sentences as requirement or non-requirement, mapping of requirements to cloud services using the ontology, and automatic production of a structured specification document. The cloud service ontology organises requirements hierarchically into six main categories — Compute, Data Handling, Network, Security \& Compliance, Management \& Monitoring, and Cloud Service Essentials — each comprising three to five subcategories and a total of 68 cloud features at the lowest level.
+\subsection{Ontology}
 
-The dataset was constructed from public Request for Proposal (RFP) documents and seven synthetically generated documents produced using GPT-4 to enrich the training data. Each of the resulting 2,164 sentences was independently labelled by two annotators with one-hot encoded assignments to the six ontology categories; disagreements led to exclusion of the disputed sample. Requirements account for 68.1\% of the entries.
+AI-CRAS defines a hierarchical cloud service ontology that organises requirements into three levels of granularity. This thesis uses the same ontology, unchanged, to classify every sentence in the dataset. The six main categories are:
 
-The classification model fine-tunes BERT\textsubscript{BASE-UNCASED} with a dropout layer (rate 0.3) and a linear output layer mapping the 768-dimensional pooled representation to six binary logits, trained with binary cross-entropy loss and the Adam optimizer. The hyperparameter configuration uses a maximum sequence length of 300 tokens, batch size of 16, learning rate of $3\times10^{-5}$, weight decay of $10^{-6}$, and a classification threshold of 0.20. On an 85/15 train-validation split, the model achieved a binary recall of 0.96 and an F1-score of 0.92, and a multi-label macro-averaged F1-score of 0.76, with a micro- and macro-averaged ROC-AUC of 0.96.
+\begin{itemize}
+    \item \textbf{Compute} — processing resources: virtual machines, containers, auto-scaling, load balancing.
+    \item \textbf{Data Handling} — data storage and management: databases (SQL, NoSQL), storage systems, caching and data optimisation.
+    \item \textbf{Network} — connectivity and traffic management: firewalls, load balancers, VPNs, DNS, latency and bandwidth specifications.
+    \item \textbf{Security \& Compliance} — protection and regulatory adherence: encryption, identity management, certifications (ISO 27001, GDPR), access control.
+    \item \textbf{Management \& Monitoring} — operational oversight: dashboards, logging, alerting, cost management, auditing.
+    \item \textbf{Cloud Service Essentials} — foundational cloud properties: high availability, disaster recovery, multi-region deployment, service-level agreements.
+\end{itemize}
 
-These results establish AI-CRAS as the baseline for automated cloud requirement classification and for the experiments in this thesis. The framework, however, operates under an implicit assumption that its input sentences are clear and well-formed — an assumption that rarely holds in real-world procurement documents, where requirements are routinely vague, structurally ambiguous, or context-dependent. Whether such ambiguity degrades classification performance is the question that motivates the remainder of this review.
+Each main category contains three to five subcategories, and the lowest level defines 68 specific cloud features (e.g., key management, container orchestration, geo-replication). A sentence may carry multiple labels — this is a multi-label classification problem, and the six categories are treated as independent binary targets.
+
+\subsection{Dataset}
+
+The experiments in this thesis use the exact same dataset constructed by AI-CRAS. It consists of 2,164 sentences extracted from public Request for Proposal (RFP) documents, supplemented with seven synthetically generated documents produced via GPT-4 to increase domain coverage. Each sentence was independently labelled by two annotators along two dimensions: a binary indicator distinguishing requirements from non-requirements (68.1\% are requirements), and one-hot encoded assignments to the six ontology categories. Disagreements between annotators led to exclusion of the disputed sample, preserving consistency.
+
+\subsection{Model and Configuration}
+
+AI-CRAS's BERT-based classifier is the starting point for the pipeline used in this thesis. The architecture and hyperparameters are reproduced exactly:
+
+\begin{itemize}
+    \item \textbf{Model}: BERT\textsubscript{BASE-UNCASED} (12 layers, 768 hidden units, 12 attention heads), augmented with a dropout layer (rate 0.3) and a linear output layer mapping the pooled representation to six logits.
+    \item \textbf{Loss}: binary cross-entropy with logits, treating each of the six categories as an independent binary target (multi-label setting).
+    \item \textbf{Optimiser}: Adam, with learning rate $3\times10^{-5}$ and weight decay $10^{-6}$.
+    \item \textbf{Preprocessing}: WordPiece tokenizer in uncased mode, maximum sequence length of 300 tokens.
+    \item \textbf{Training}: 85\% training / 15\% validation split (seed 42), batch size of 16, up to 5 epochs with early stopping on validation loss.
+    \item \textbf{Inference threshold}: 0.20, chosen in the original work to maximise recall without excessive precision loss.
+\end{itemize}
+
+A full description of the training procedure and evaluation protocol is given in Chapter~4.
+
+\subsection{AI-CRAS Results as Benchmark}
+
+On the original dataset, AI-CRAS reported the following results, which serve as the performance ceiling for the experiments in this thesis:
+
+\begin{itemize}
+    \item \textbf{Binary classification} (requirement \textit{vs.} non-requirement): recall of 0.96, precision of 0.88, F1-score of 0.92.
+    \item \textbf{Multi-label classification}: macro-averaged F1-score of 0.76, with per-category F1 scores ranging from 0.70 (Compute) to 0.84 (Security \& Compliance).
+    \item \textbf{ROC-AUC}: 0.96 for both micro and macro averages.
+\end{itemize}
+
+These numbers are the baseline. Any degradation observed when ambiguous sentences are present, and any recovery observed after LLM-based disambiguation, is measured relative to them. The framework, however, operates under an implicit assumption that its input sentences are clear and well-formed — an assumption that rarely holds in real-world procurement documents, where requirements are routinely vague, structurally ambiguous, or context-dependent. Whether such ambiguity degrades classification performance is the question that motivates the remainder of this review.
 
 \section{Ambiguity in Natural Language Requirements}
 
-If ambiguity matters for classification, it is necessary to define what it is and what forms it takes. The difficulty of poorly specified requirements is not simply a matter of coverage: a requirement can be correctly scoped and still be ambiguous — open to more than one valid interpretation. An ambiguous requirement may be correctly identified \textit{as} a requirement by a classifier while still being fundamentally misunderstood by the system that acts on it. Bano \cite{bano2015ambiguity} defines ambiguity in requirements engineering as ``having multiple interpretations despite the reader's knowledge of the RE context'', and identifies it as more intractable than other defects such as incompleteness.
+Having established AI-CRAS as the baseline, the next question is: what form does the missing piece, ambiguity, take? Bano \cite{bano2015ambiguity} defines ambiguity in requirements engineering as ``having multiple interpretations despite the reader's knowledge of the RE context'', and identifies it as more intractable than other defects such as incompleteness. Crucially, an ambiguous requirement can be correctly identified \textit{as} a requirement by a classifier, while still being fundamentally misunderstood — which means that high classification scores on a benchmark do not guarantee that the input was well understood.
 
-Bano's work also provides the structured taxonomy — building on Berry's widely adopted classification — that this thesis uses to annotate and analyse ambiguous sentences:
+The taxonomy established by Berry and systematised by Bano \cite{bano2015ambiguity} classifies ambiguity into five types. This is the taxonomy adopted in this thesis to annotate every sentence in the AI-CRAS dataset:
 
-\begin{quote}
-Lexical ambiguity of a word arises when a word can have several different meanings. Syntactic ambiguity or structural ambiguity in a sentence arises when the sentence can be parsed in more than one way, resulting in more than one grammatical structure where each provides different meanings. Semantic ambiguity arises in a sentence when predicate logic of a sentence can lead to multiple interpretations, although there is no lexical, syntactic, or structural ambiguity. Language errors ambiguity is a grammatically wrong construction that is nevertheless understood and possibly in different ways due to the error. Pragmatic ambiguity is concerned with the relationship between the interpretations of a sentence and its context. \cite{bano2015ambiguity}
-\end{quote}
+\begin{itemize}
+    \item \textbf{Lexical ambiguity}: a word or phrase has multiple meanings (e.g., ``high availability'' may imply different uptime guarantees to different stakeholders).
+    \item \textbf{Syntactic ambiguity}: the grammatical structure admits more than one valid parse (e.g., a modifier whose attachment is ambiguous between two clauses).
+    \item \textbf{Semantic ambiguity}: the logical content supports multiple interpretations even when the syntax is clear (e.g., ``ensure continuity of service at all times'' without defining what counts as continuity).
+    \item \textbf{Pragmatic ambiguity}: the meaning depends on implicit context not present in the text (e.g., ``this will include system maintenance windows'' without specifying what a maintenance window entails).
+    \item \textbf{Language-error ambiguity}: grammatical mistakes or typographical errors obscure the intended meaning (e.g., ``All the equipment's/Devices in the path have to be in HA mode'' leaves the acronym undefined and contains a spurious apostrophe).
+\end{itemize}
 
-These five categories — lexical, syntactic, semantic, language-error, and pragmatic ambiguity — are not rare edge cases. Bano's mapping study of the RE literature found that 81\% of empirical work on requirements ambiguity focuses on detection alone, with very little attention to resolution. This thesis directly addresses that gap: rather than detecting ambiguity, it tests whether automated resolution — rewriting ambiguous sentences with an LLM — can improve downstream classification. The annotation procedure that operationalises this taxonomy is described in Chapter~3.
+These five categories are not rare edge cases. Bano's systematic mapping of the RE literature found that 81\% of empirical work on requirements ambiguity focuses on detection alone, with almost no attention to resolution. For this thesis, the implication is direct: the AI-CRAS baseline was trained and evaluated without regard for ambiguity, and the literature offers no precedent for whether resolving ambiguity, rather than merely detecting it, can improve downstream classification. The annotation procedure that operationalises this taxonomy on the AI-CRAS dataset, and the empirical distribution of each ambiguity type, are described in Chapter~3.
 
-\section{BERT and Transformer-Based Classification}
+\section{Classification and Disambiguation Models}
 
-To measure the effect of ambiguity on classification, a model is needed that has been shown to work well on this specific task. BERT \cite{devlin2019bert} — the same model family used by AI-CRAS — is such a model. It is built on the transformer architecture \cite{vaswani2017attention}, which replaced recurrent networks with a self-attention mechanism that allows every token in a sequence to attend to all others simultaneously, producing richer contextual representations than its predecessors. BERT extends this foundation by pre-training on large text corpora using masked language modelling and next-sentence prediction, yielding representations that can be fine-tuned for downstream tasks with relatively little labelled data.
+To study the effect of ambiguity on cloud requirement classification, this thesis needs two things: a classifier to measure its effect, and a tool to attempt to repair it. BERT handles the first; large language models handle the second.
 
-Fine-tuned BERT classifiers have demonstrated strong performance across a range of requirements engineering tasks: identifying requirements from unstructured documents, classifying functional and non-functional requirements, and detecting security-related statements. AI-CRAS's results on cloud requirement classification — 0.92 F1-score on the binary task — confirm that this architecture is well-suited to the domain and the task. Using the same model family is also a deliberate methodological choice: it ensures that the results in this thesis are directly comparable to AI-CRAS's published baseline, so that any performance differences can be attributed to ambiguity rather than to a change in model.
+\subsection{BERT: The Classifier Under Test}
 
-\section{Large Language Models for Disambiguation and Classification}
+BERT \cite{devlin2019bert} is built on the transformer architecture \cite{vaswani2017attention}, which replaced recurrent networks with a self-attention mechanism that lets every token attend to all others simultaneously. BERT extends this by pre-training on large corpora with masked language modelling, producing representations that fine-tune well on downstream tasks with relatively little labelled data. Fine-tuned BERT classifiers have demonstrated strong performance across requirements engineering tasks, including identifying requirements from unstructured documents and classifying functional and non-functional requirements.
 
-If ambiguity degrades BERT's performance, the natural next question is whether it can be fixed. Large language models offer two distinct avenues for doing so.
+The reason BERT, specifically, is used in this thesis is methodological: it is the model family chosen by AI-CRAS, and reproducing the same architecture ensures direct comparability with the published baseline. Any difference in performance between the original dataset and the ambiguity-filtered or deambiguified variants can then be attributed to the data, not to a change in model.
 
-The GPT family \cite{openai2023gpt4} introduced a paradigm shift: rather than fine-tuning on labelled data for each task, these models are prompted with natural language instructions and respond accordingly. This makes them natural candidates for requirement disambiguation — given an ambiguous sentence, an LLM can be asked to rewrite it in clearer terms while preserving the original intent, without requiring any task-specific training. This thesis tests whether feeding such rewritten sentences back to the BERT classifier (RQ2) recovers the performance lost to ambiguity.
+At the same time, the rapid evolution of large language models in recent years raises the question of whether a general-purpose model can bypass the fine-tuning step altogether and perform the same classification task directly via prompting. This alternative is explored in Section~\ref{sec:llm-direct}.
 
-Beyond rewriting, LLMs can also perform classification directly through prompting, bypassing BERT entirely. Brown et al.\ demonstrated that GPT-3 can perform few-shot classification by conditioning on a small number of labelled examples provided in the prompt \cite{brown2020gpt3}, and Wei et al.\ showed that instruction-tuned models generalise to unseen classification tasks in zero-shot settings \cite{wei2022flan}. Whether this general capability extends to the specific and technical domain of cloud requirement classification — and whether it is competitive with a fine-tuned BERT model — is what RQ3 investigates.
+\subsection{Large Language Models: Disambiguation and Direct Classification}
+\label{sec:llm-direct}
+
+If BERT measures the damage that ambiguity causes, large language models offer two strategies for repairing it.
+
+The first is disambiguation. The GPT family \cite{openai2023gpt4} shifted the paradigm from fine-tuning on labelled data to prompting with natural language instructions. This makes LLMs natural candidates for rewriting: given an ambiguous sentence, the model can be asked to produce a clearer version that preserves the original intent, without any task-specific training. This thesis tests whether feeding such rewritten sentences back to the BERT classifier recovers the performance lost to ambiguity (RQ2).
+
+The second is removing BERT from the pipeline entirely. Brown et al.\ demonstrated that GPT-3 can perform few-shot classification by conditioning on a handful of labelled examples in the prompt \cite{brown2020gpt3}, and Wei et al.\ showed that instruction-tuned models generalise to unseen tasks in zero-shot settings \cite{wei2022flan}. Whether this capability extends to the technical domain of cloud requirement classification — and whether it can match a fine-tuned BERT — is what RQ3 investigates.
