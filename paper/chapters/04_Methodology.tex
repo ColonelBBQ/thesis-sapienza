@@ -1,6 +1,6 @@
 \chapter{Methodology}
 
-This chapter describes the three components of the experimental pipeline: the BERT-based classifier that serves as the primary model under test, the LLM-based disambiguation procedure used to produce clarified variants of ambiguous sentences, and the LLM direct classification setup evaluated as an alternative to BERT. The chapter closes with the full experimental design, defining the dataset subsets on which each component is evaluated.
+This chapter describes the three components of the experimental pipeline: the BERT-based classifier that serves as the primary model under test, the LLM-based disambiguation procedure used to produce clarified variants of ambiguous sentences, and the LLM direct classification setup—spanning three models in both zero-shot and few-shot configurations—evaluated as an alternative to BERT. The chapter closes with the full experimental design, defining the dataset subsets and model configurations on which each component is evaluated.
 
 \section{BERT Classification Pipeline}
 
@@ -70,55 +70,119 @@ The dataset is processed in chunks of 10 rows to keep each API call within conte
 Non-ambiguous sentences are retained verbatim. The result is a parallel dataset in which every row of the original corpus has a counterpart in the column \texttt{deambiguified\_description}, permitting side-by-side comparison.
 
 \section{LLM as Direct Classifier}
+\label{sec:llm-classifier}
 
 Beyond rewriting, LLMs can perform classification directly through prompting, bypassing the BERT pipeline entirely. This configuration is evaluated to determine whether a general-purpose model, instructed in natural language, can approach or exceed the performance of the domain-specific fine-tuned classifier.
 
-\subsection{Zero-Shot Classification}
+Three models are evaluated to assess the relationship between model capability and classification performance:
 
-In the zero-shot setting, the model receives the sentence to classify, a definition of each of the six cloud service categories, and an instruction to return the applicable labels. No labelled examples are provided. The prompt includes the six category names with one-line descriptions drawn from the AI-CRAS ontology, and asks the model to output labels in a structured format (e.g., a JSON list). The same prompt also asks the model to classify each sentence as a requirement or non-requirement for the binary task.
+\begin{itemize}
+    \item \textbf{GPT\textsubscript{4.1-nano}}: a lightweight, low-cost model designed for simple tasks. It serves as a baseline for checking whether even the cheapest models can perform competent cloud-requirement classification.
+    \item \textbf{GPT\textsubscript{5.4-mini}}: a mid-range model offering a favourable balance of capability, speed, and cost. This is the primary model for both disambiguation (Section~4.2) and direct classification.
+    \item \textbf{GPT\textsubscript{5.5}}: a large, high-capability model optimised for complex reasoning. It probes the upper bound of LLM classification performance on this task.
+\end{itemize}
 
-\subsection{Few-Shot Classification}
+All models are accessed via the OpenAI chat completions API with temperature set to 0, maximising determinism and reproducibility. No sampling or top-$p$ filtering is applied.
 
-In the few-shot setting, the prompt is augmented with a set of labelled examples selected from the training partition. A small number of sentences (e.g., 2--3) per category, balanced across the six labels, are prepended to the instruction as demonstrations. The examples are chosen to be unambiguous (ambiguity flag = 0) to avoid confusing the model during in-context learning. The same output format and binary classification instruction are retained.
+\subsection{Prompt Design}
+
+The classification prompt contains three components: a system-level instruction, the six category definitions, and the batch of sentences to classify. The system instruction directs the model to output valid JSON only, with no explanatory text. The category definitions—drawn from the AI-CRAS ontology and identical to those presented in Section~2.1—are included inline in every user message:
+
+\begin{quote}
+\small
+\textbf{Compute:} Processing resources: virtual machines, container orchestration, serverless computing, CPU/GPU and memory specifications.\\
+\textbf{Data Handling:} Data storage and management: databases (SQL, NoSQL), storage systems, caching and data optimisation.\\
+\textbf{Network:} Connectivity and traffic management: firewalls, load balancers, VPNs, DNS, latency and bandwidth specifications.\\
+\textbf{Security \& Compliance:} Protection and regulatory adherence: encryption, identity management, certifications (ISO 27001, GDPR), access control.\\
+\textbf{Management \& Monitoring:} Operational oversight: dashboards, logging, alerting, cost management, auditing.\\
+\textbf{Cloud Service Essentials:} General cloud properties: elasticity, multitenancy, pay-per-use billing, availability zones, SLAs.
+\end{quote}
+
+Each sentence may receive zero, one, or multiple labels. A sentence that receives at least one label is classified as a requirement; otherwise, it is a non-requirement. The prompt instructs the model to output a JSON array with one object per sentence, where each object contains:
+
+\begin{itemize}
+    \item \texttt{id}: an integer matching the sentence's position in the batch;
+    \item \texttt{labels}: a list of strings, each drawn from the six category names in their canonical form;
+    \item \texttt{is\_requirement}: a boolean indicating whether the sentence describes a requirement.
+\end{itemize}
+
+\subsection{Zero-Shot Setting}
+
+In the zero-shot setting, the model receives only the sentence batch and the category definitions—no labelled examples are provided. This configuration tests the model's ability to perform the classification task purely from its pre-trained knowledge of cloud computing terminology, without any task-specific fine-tuning or demonstration. The model must map each sentence to the six categories using only the one-line ontology descriptions supplied in the prompt, and must determine the binary requirement status from the label set.
+
+Zero-shot classification is the most parameter-efficient setup: it requires no labelled data, no training infrastructure, and a single API call per batch. If an off-the-shelf LLM can approach BERT-level performance in this configuration, it would represent a significant practical advantage for domains where labelled datasets are scarce or expensive to produce. Conversely, a large performance gap would indicate that the domain-specific knowledge captured by the fine-tuned BERT is not trivially replicable through general-purpose pre-training alone.
+
+The zero-shot configuration also serves as a clean lower bound for the LLM conditions: any improvement observed in the few-shot setting can be attributed entirely to the addition of in-context examples, isolating the contribution of demonstration-based learning from the model's intrinsic knowledge.
+
+\subsection{Few-Shot Setting}
+
+In the few-shot setting, the prompt is augmented with a set of labelled demonstrations that show the model how to perform the classification task by example. The demonstrations are selected from a dedicated example pool—the first 200 rows of the dataset—which is held out from the evaluation set to prevent data leakage.
+
+\subsubsection{Example Selection}
+
+For each of the six categories, one sentence that carries that label, contains no ambiguity (\texttt{ambuiguity} = 0), and has exactly one label overall is selected as a clean prototype. The remaining slots per category are filled to match the underlying label-count distribution of the example pool: the proportion of single-label to multi-label sentences among the demonstrations is deliberately aligned with the proportion observed among labelled sentences in the pool (approximately 75\% single-label, 25\% multi-label). This ensures the model is exposed to both pure-category examples and legitimate label combinations in proportions consistent with the data, rather than being biased toward either extreme.
+
+In addition, non-requirement sentences—those carrying zero labels—are included in proportion to their frequency in the pool (approximately 25\% of demonstrations), providing explicit negative examples. The total number of demonstrations is determined automatically: 12 labelled examples (one prototype plus one distribution-matched example per category) plus non-requirement examples computed as $n_{\text{non-req}} = \lfloor 12 \cdot p_{\text{non-req}} / (1 - p_{\text{non-req}}) \rfloor$ where $p_{\text{non-req}}$ is the proportion of zero-label sentences in the pool. For the pool used in this work (200 rows, first portion of the dataset), this yields 4 non-requirement demonstrations for a total of 16.
+
+Sentences that carry multiple labels can serve as examples for more than one category. The selection algorithm iterates over categories, uses a with-replacement mechanism across categories but ensures no sentence is duplicated within the full demonstration set, and records the chosen sentences with their complete label vectors.
+
+\subsubsection{In-Context Learning Protocol}
+
+The demonstrations are formatted as sentence–label pairs and prepended to the batch instruction, maintaining the same JSON output format used in the zero-shot condition. The model is expected to generalise from these examples to unseen sentences, applying the category definitions with the benefit of having observed concrete instances of each class.
+
+The few-shot configuration tests whether in-context learning—a capability for which LLMs are specifically known~\cite{brown2020gpt3}—can compensate for the absence of supervised fine-tuning. If the few-shot performance significantly exceeds the zero-shot baseline, it suggests that the model benefits from concrete demonstrations of the classification task beyond what the category definitions alone convey. If the gain is marginal, it indicates that the category definitions are sufficiently informative on their own, or that the model's pre-training already provides adequate coverage of cloud-requirement language.
+
+\subsubsection{Design Considerations}
+
+The example pool is deliberately subsetted to 200 rows and excluded from the classification set. This ensures a clean separation: no sentence seen during in-context learning is ever evaluated. The remaining 1,966 sentences form the classification set, maintaining a large evaluation sample despite the held-out pool. The pool size is chosen to provide sufficient candidate diversity—each category must have at least one unambiguous single-label and one additional example—while keeping the hold-out loss minimal.
+
+The selection strategy is distribution-matched: the proportion of single-label, multi-label, and non-requirement demonstrations reflects the corresponding proportions observed in the example pool. This prevents the demonstrations from introducing a label-count bias that might skew the model toward under- or over-assigning categories. All selected demonstrations are unambiguous (\texttt{ambuiguity} = 0), eliminating the risk of the model internalising unclear patterns from vague or underspecified examples.
+
+The binary requirement flag is derived from the label set, consistent with the zero-shot protocol: a sentence receiving at least one label is a requirement. The demonstrations include both requirement and non-requirement examples, with non-requirement examples presented explicitly as sentences carrying an empty label set.
 
 \section{Experimental Design}
+\label{sec:exp-design}
 
 The classifiers are evaluated on a family of dataset subsets designed to isolate the effect of ambiguity and to measure the contribution of disambiguation.
 
 \subsection{Baseline}
 
-The \textbf{baseline} subset consists of the full dataset with all 709 sentences, containing both ambiguous and non-ambiguous examples. This reproduces the AI-CRAS configuration and serves as the reference against which all other conditions are compared.
+The \textbf{baseline} subset consists of the full, case-insensitively deduplicated dataset comprising 2,166 sentences, containing both ambiguous (689) and non-ambiguous (1,578) examples. This reproduces the AI-CRAS configuration as faithfully as possible and serves as the reference against which all other conditions are compared.
 
 \subsection{No-Ambiguity Subset}
 
-A second subset, \textbf{no-ambiguity}, excludes all sentences flagged as ambiguous (\texttt{ambuiguity = 1}), leaving only the unambiguous sentences. This tests the hypothesis that training and evaluating exclusively on clear sentences improves performance.
+A second subset, \textbf{no-ambiguity}, excludes all sentences flagged as ambiguous (\texttt{ambuiguity = 1}), leaving only the 1,578 unambiguous sentences. This tests the hypothesis that training and evaluating exclusively on clear sentences improves performance.
 
 \subsection{Deambiguified Subset}
 
-A third subset, \textbf{deambiguified}, is derived from the LLM-rewritten dataset. Every ambiguous sentence is replaced by its LLM-rewritten counterpart, while non-ambiguous sentences are kept unchanged. This tests whether disambiguation improves classification performance.
+A third subset, \textbf{deambiguified}, is derived from the LLM-rewritten dataset (Section~4.2). Every ambiguous sentence is replaced by its LLM-rewritten counterpart, while non-ambiguous sentences are kept unchanged. This tests whether disambiguation improves classification performance.
+
+\subsection{LLM Direct Classification}
+
+The three LLMs (GPT\textsubscript{4.1-nano}, GPT\textsubscript{5.4-mini}, GPT\textsubscript{5.5}) are evaluated as standalone classifiers on the full 2,166-sentence dataset, in both zero-shot and few-shot configurations. No training or fine-tuning is performed; classification relies entirely on the prompt and, in the few-shot case, on in-context demonstrations drawn from a 200-row example pool disjoint from the evaluated set (1,966 sentences). Evaluation uses the same multi-label and binary metrics as the BERT pipeline, excluding ROC-AUC.
 
 \subsection{Per-Category Analysis}
 
-Every experiment reports metrics not only globally but also broken down by the six cloud service categories. This per-category analysis is motivated by the finding in Chapter~3 that ambiguity rates vary substantially across categories (from 23.6\% for Security \& Compliance to 43.9\% for Cloud Service Essentials), and makes it possible to determine whether ambiguity degrades performance uniformly or whether some categories are disproportionately affected.
+Every experiment reports metrics not only globally but also broken down by the six cloud service categories. This per-category analysis is motivated by the finding in Chapter~3 that ambiguity rates vary substantially across categories (from 23.6\% for Security \& Compliance to 43.9\% for Cloud Service Essentials), and identifies whether ambiguity degrades performance uniformly or whether some categories are disproportionately affected—and whether LLMs exhibit the same category-level variation as the fine-tuned BERT model.
 
 Table~\ref{tab:experiment_overview} summarises all experimental conditions.
 
 \begin{table}[h]
 \centering
-\caption{Overview of experimental conditions.}
+\caption{Overview of experimental conditions. Models in parentheses are variants of the same condition.}
 \label{tab:experiment_overview}
 \begin{tabular}{lll}
 \toprule
 Condition & Dataset & Classifier \\
 \midrule
-Baseline      & Full original                  & BERT \\
-No ambiguity  & Unambiguous only               & BERT \\
-Deambiguified & All ambiguous rewritten        & BERT \\
+Baseline      & Full original (2,166)          & BERT \\
+No ambiguity  & Unambiguous only (1,578)       & BERT \\
+Deambiguified & All ambiguous rewritten (2,166) & BERT \\
 \midrule
-Zero-shot     & Full original                  & GPT\textsubscript{5.4-mini} \\
-Few-shot      & Full original                  & GPT\textsubscript{5.4-mini} \\
+Zero-shot     & Full original (2,166)          & GPT\textsubscript{4.1-nano} / GPT\textsubscript{5.4-mini} / GPT\textsubscript{5.5} \\
+Few-shot      & Example pool held out (1,966)  & GPT\textsubscript{4.1-nano} / GPT\textsubscript{5.4-mini} / GPT\textsubscript{5.5} \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-All BERT experiments are run with the same hyperparameter configuration and the same random seed (42) to ensure that performance differences across conditions are attributable solely to the data, not to training stochasticity.
+All BERT experiments are run with the same hyperparameter configuration and the same random seed (42) to ensure that performance differences across conditions are attributable solely to the data, not to training stochasticity. All LLM experiments use temperature 0 and identical prompts (differing only in the presence or absence of few-shot demonstrations and the model identifier), so that differences across models and settings reflect genuine capability differences rather than prompt engineering artefacts.

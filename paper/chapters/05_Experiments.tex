@@ -20,15 +20,101 @@ This chapter presents the results of the four experimental scenarios designed to
 
 \section{RQ3 --- LLM as Direct Classifier}
 
-[To be completed: overall framing of the LLM-as-classifier evaluation and comparison with BERT results.]
+This section presents the results of using GPT\textsubscript{5.4-mini} as a standalone classifier for cloud requirement identification, bypassing the BERT pipeline entirely. The model is evaluated in both zero-shot and few-shot configurations on the full 2,166-sentence dataset. All experiments use temperature 0, the same category definitions (Section~4.3.1), and the batch-processing protocol described in Section~4.3. The same set of multi-label metrics (exact-match accuracy, Hamming loss, Jaccard score, micro-, macro-, and per-label F1) and the binary requirement F1-score are reported.
 
-\subsection{Zero-Shot Setting}
+\subsection{Zero-Shot Results}
 
-[To be completed: results of prompting the LLM to classify sentences with no examples provided. Performance on binary and multi-label tasks.]
+In the zero-shot setting, GPT\textsubscript{5.4-mini} classifies 2,166 sentences using only the category definitions as guidance, with no labelled examples. The results are shown in Table~\ref{tab:rq3_zeroshot}.
 
-\subsection{Few-Shot Setting}
+\begin{table}[h]
+\centering
+\caption{Zero-shot classification results of GPT\textsubscript{5.4-mini} on the full dataset (2,166 sentences).}
+\label{tab:rq3_zeroshot}
+\begin{tabular}{lcc}
+\toprule
+Metric & Value \\
+\midrule
+Exact Match Accuracy & 0.407 \\
+Hamming Loss         & 0.148 \\
+Jaccard Score        & 0.410 \\
+Micro F1             & 0.579 \\
+Macro F1             & 0.574 \\
+Binary Requirement F1 & 0.840 \\
+\bottomrule
+\end{tabular}
+\end{table}
 
-[To be completed: results of prompting the LLM with a small number of labeled examples. Performance on binary and multi-label tasks. Comparison with zero-shot.]
+The model achieves a binary requirement F1-score of 0.840, demonstrating reliable discrimination between requirements and non-requirements from the category descriptions alone. The macro-averaged F1 of 0.574 and micro-averaged F1 of 0.579 indicate moderate overall performance on the multi-label task, with an exact-match accuracy of 0.407—meaning that just over 40\% of sentences receive exactly the correct label set.
+
+Table~\ref{tab:rq3_zeroshot_perlabel} breaks down performance by cloud service category.
+
+\begin{table}[h]
+\centering
+\caption{Per-label zero-shot classification results of GPT\textsubscript{5.4-mini}.}
+\label{tab:rq3_zeroshot_perlabel}
+\begin{tabular}{lccc}
+\toprule
+Category & Precision & Recall & F1 \\
+\midrule
+Compute                       & 0.423 & 0.694 & 0.525 \\
+Data Handling                 & 0.364 & 0.885 & 0.516 \\
+Network                       & 0.561 & 0.849 & 0.675 \\
+Security \& Compliance         & 0.599 & 0.869 & 0.709 \\
+Management \& Monitoring       & 0.642 & 0.591 & 0.616 \\
+Cloud Service Essentials      & 0.374 & 0.431 & 0.401 \\
+\midrule
+Macro Average                 & 0.494 & 0.720 & 0.574 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Performance varies considerably across categories. Security \& Compliance is classified most reliably (F1 = 0.709), followed by Network (0.675) and Management \& Monitoring (0.616). Cloud Service Essentials is the hardest category (F1 = 0.401), with the lowest precision (0.374) and recall (0.431) among all six categories. The Recall column reveals a consistent pattern: the model is substantially more willing to assign a label than to withhold it, as reflected in recall scores that exceed precision across all categories. At the extreme, Data Handling achieves a recall of 0.885 but a precision of only 0.364, indicating that the model assigns this label to more than twice as many sentences as warranted by the ground truth. This over-prediction pattern—high recall, low precision—is systematic and is explored further in the few-shot results.
+
+\subsection{Few-Shot Results}
+
+In the few-shot setting, the prompt is augmented with 16 demonstration examples drawn from a 200-row example pool disjoint from the classification set (Section~4.3.3). The examples are distribution-matched: 4 non-requirement sentences, 9 single-label sentences, and 3 multi-label sentences, reflecting the label-count distribution of the pool. Table~\ref{tab:rq3_fewshot} summarises the overall multi-label metrics, and Table~\ref{tab:rq3_fewshot_perlabel} provides the per-category breakdown.
+
+\begin{table}[h]
+\centering
+\caption{Few-shot classification results of GPT\textsubscript{5.4-mini} on 1,966 sentences (200 held out as example pool).}
+\label{tab:rq3_fewshot}
+\begin{tabular}{lcc}
+\toprule
+Metric & Value \\
+\midrule
+Exact Match Accuracy & 0.396 \\
+Hamming Loss         & 0.148 \\
+Jaccard Score        & 0.405 \\
+Micro F1             & 0.573 \\
+Macro F1             & 0.568 \\
+Binary Requirement F1 & 0.832 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[h]
+\centering
+\caption{Per-label few-shot classification results of GPT\textsubscript{5.4-mini}.}
+\label{tab:rq3_fewshot_perlabel}
+\begin{tabular}{lccc}
+\toprule
+Category & Precision & Recall & F1 \\
+\midrule
+Compute                       & 0.478 & 0.673 & 0.559 \\
+Data Handling                 & 0.382 & 0.836 & 0.525 \\
+Network                       & 0.566 & 0.806 & 0.665 \\
+Security \& Compliance         & 0.607 & 0.828 & 0.700 \\
+Management \& Monitoring       & 0.551 & 0.659 & 0.600 \\
+Cloud Service Essentials      & 0.346 & 0.377 & 0.361 \\
+\midrule
+Macro Average                 & 0.488 & 0.696 & 0.568 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The few-shot results follow the same overall pattern as the zero-shot configuration: Security \& Compliance remains the strongest category (F1 = 0.700), Cloud Service Essentials the weakest (F1 = 0.361), and the model continues to exhibit higher recall than precision across all categories. The distribution-matched demonstrations appear to have a modest regularising effect on two categories—Compute F1 improves from 0.525 to 0.559, and Data Handling from 0.516 to 0.525—while producing comparable or slightly lower scores on the remaining four categories. The macro-averaged F1 drops marginally from 0.574 (zero-shot) to 0.568 (few-shot), and the binary requirement F1 decreases from 0.840 to 0.832. The systematic over-prediction observed in zero-shot persists: the model's average recall across categories remains at 0.696, while average precision stays at 0.488.
+
+The few-shot demonstrations were curated with considerable care—unambiguous sentences, distribution-matched label counts, and explicit non-requirement examples—yet they do not yield a consistent improvement over the zero-shot baseline. This result suggests that the category definitions alone carry sufficient signal for this task, and that in-context demonstrations, even when carefully constructed, may introduce a distributional bias that counteracts their informative value. The implications of this finding are discussed in Chapter~6.
 
 \section{Cross-Experiment Comparison}
 
