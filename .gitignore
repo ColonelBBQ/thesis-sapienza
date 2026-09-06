@@ -51,6 +51,14 @@ Thumbs.db
 # Thesis output
 paper/output/
 
-# Data (large files)
+# Data: ignore raw/intermediate corpora, but track the curated annotation + prediction files
 data/*.csv
 !data/.gitkeep
+!data/dataframe.csv
+!data/dataframe_deambiguified.csv
+!data/llm_ambiguity_annotation.csv
+!data/llm_*_predictions.csv
+
+# Compiled thesis PDF (regenerable with latexmk); commit sources only
+paper/main.pdf
+paper/main-frn.pdf

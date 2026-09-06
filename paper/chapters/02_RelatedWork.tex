@@ -21,7 +21,7 @@ Each main category contains three to five subcategories, and the lowest level de
 
 \subsection{Dataset}
 
-The experiments in this thesis use the exact same dataset constructed by AI-CRAS. It consists of 2,164 sentences extracted from public Request for Proposal (RFP) documents, supplemented with seven synthetically generated documents produced via GPT-4 to increase domain coverage. Each sentence was independently labelled by two annotators along two dimensions: a binary indicator distinguishing requirements from non-requirements (68.1\% are requirements), and one-hot encoded assignments to the six ontology categories. Disagreements between annotators led to exclusion of the disputed sample, preserving consistency.
+The experiments in this thesis use the exact same dataset constructed by AI-CRAS. It consists of 2,166 sentences extracted from public Request for Proposal (RFP) documents, supplemented with seven synthetically generated documents produced via GPT-4 to increase domain coverage. Each sentence was independently labelled by two annotators along two dimensions: a binary indicator distinguishing requirements from non-requirements (68.1\% are requirements), and one-hot encoded assignments to the six ontology categories. Disagreements between annotators led to exclusion of the disputed sample, preserving consistency.
 
 \subsection{Model and Configuration}
 
@@ -60,7 +60,7 @@ The taxonomy established by Berry and systematised by Bano \cite{bano2015ambigui
     \item \textbf{Lexical ambiguity}: a word or phrase has multiple meanings (e.g., ``high availability'' may imply different uptime guarantees to different stakeholders).
     \item \textbf{Syntactic ambiguity}: the grammatical structure admits more than one valid parse (e.g., a modifier whose attachment is ambiguous between two clauses).
     \item \textbf{Semantic ambiguity}: the logical content supports multiple interpretations even when the syntax is clear (e.g., ``ensure continuity of service at all times'' without defining what counts as continuity).
-    \item \textbf{Pragmatic ambiguity}: the meaning depends on implicit context not present in the text (e.g., ``this will include system maintenance windows'' without specifying what a maintenance window entails).
+    \item \textbf{Pragmatic ambiguity}: the meaning depends on implicit context not present in the text (e.g., ``These should be recorded for future purpose for a defined period'', whose antecedent appears only in a preceding part of the document).
     \item \textbf{Language-error ambiguity}: grammatical mistakes or typographical errors obscure the intended meaning (e.g., ``All the equipment's/Devices in the path have to be in HA mode'' leaves the acronym undefined and contains a spurious apostrophe).
 \end{itemize}
 
@@ -85,4 +85,10 @@ If BERT measures the damage that ambiguity causes, large language models offer t
 
 The first is disambiguation. The GPT family \cite{openai2023gpt4} shifted the paradigm from fine-tuning on labelled data to prompting with natural language instructions. This makes LLMs natural candidates for rewriting: given an ambiguous sentence, the model can be asked to produce a clearer version that preserves the original intent, without any task-specific training. This thesis tests whether feeding such rewritten sentences back to the BERT classifier recovers the performance lost to ambiguity (RQ2).
 
-The second is removing BERT from the pipeline entirely. Brown et al.\ demonstrated that GPT-3 can perform few-shot classification by conditioning on a handful of labelled examples in the prompt \cite{brown2020gpt3}, and Wei et al.\ showed that instruction-tuned models generalise to unseen tasks in zero-shot settings \cite{wei2022flan}. Whether this capability extends to the technical domain of cloud requirement classification — and whether it can match a fine-tuned BERT — is what RQ3 investigates.
+The second is removing BERT from the pipeline entirely, by using an LLM as a direct classifier via prompting. This can be done at two levels of guidance:
+
+\begin{itemize}
+    \item \textbf{Zero-shot}: the LLM is given the task description and asked to classify each requirement without any labelled examples. The model must generalise from its pre-training alone, without any domain-specific demonstration. \cite{wei2022flan} showed that instruction-tuned models can generalise to unseen tasks in zero-shot settings, but whether this holds for the narrow technical domain of cloud requirement classification is uncertain. We do not have a strong expectation as to whether a zero-shot LLM classifier can approach the performance of a fine-tuned BERT.
+
+    \item \textbf{Few-shot}: the LLM is given the same task description, accompanied by a small number of labelled examples inserted into the prompt. \cite{brown2020gpt3} demonstrated that large language models can perform few-shot classification by conditioning on these examples, and the literature consistently shows that adding exemplars improves performance over zero-shot prompting. We therefore expect the few-shot configuration to outperform zero-shot. Whether it can match a fine-tuned BERT remains the open question that RQ3 investigates.
+\end{itemize}

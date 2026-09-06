@@ -2,7 +2,11 @@
 \setlength{\parskip}{0pt plus 1.0pt}
 \section*{Abstract}
 
-[Abstract to be written.]
+Natural-language requirements in cloud-computing procurement documents are often ambiguous, and this ambiguity is widely assumed to complicate their automated classification. This thesis examines that assumption empirically. Starting from the AI-CRAS dataset of 2,166 cloud-requirement sentences, each sentence is annotated with one of five types of ambiguity following an established taxonomy. Because ambiguity annotation is inherently subjective, the annotation is cross-checked against an independent annotation produced by a large language model; the two agree only moderately (Cohen's kappa of 0.48), indicating that a large share of the corpus is genuinely open to interpretation.
+
+The annotated dataset is then used to answer three research questions. First, does ambiguity degrade a fine-tuned BERT classifier? Training and evaluating on the unambiguous subset alone leaves the macro-averaged F1 statistically unchanged (0.667 \textit{vs.}~0.675 for the full-dataset baseline), showing no measurable effect of ambiguity, overall or in any cloud service category. Second, does rewriting ambiguous sentences with an LLM improve classification? It does not: the deambiguified corpus performs indistinguishably from the original (macro F1 of 0.673). Third, can LLMs used directly as classifiers match BERT? They cannot: the best prompted configuration reaches a binary requirement F1 of 0.856 against BERT's 0.874, and a macro F1 of only 0.574 against 0.675.
+
+The thesis concludes that, under the annotation studied, ambiguity does not measurably affect BERT-based classification of cloud requirements, and that LLM-based disambiguation---while valuable for human-facing purposes---does not change automated accuracy. At the same time, fine-tuned BERT remains superior to general-purpose prompted LLMs on this task, particularly for fine-grained multi-label classification. These results are interpreted as evidence either that ambiguity matters less for automated classification than commonly assumed, or that it is too subjectively defined to be measured reliably, underlining the importance of how ambiguity is operationalised in requirements-engineering research.
 
 \vfill
 Keywords: requirements engineering, ambiguity, BERT, cloud computing, large language models, natural language processing.

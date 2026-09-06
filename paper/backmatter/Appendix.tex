@@ -1,3 +1,129 @@
 \chapter{Appendix}
 
-[Appendix content to be added.]
+\section{LLM Disambiguation Prompt}
+\label{app:disambiguation_prompt}
+
+The following system prompt was used with GPT\textsubscript{5.4-mini} (temperature 0) for the disambiguation procedure described in Section~4.2. The \texttt{\{rows\}} placeholder was replaced at runtime with a JSON array of 10 rows, each containing \texttt{row\_id}, \texttt{original} (the sentence text), and \texttt{ambiguity} (1 or 0).
+
+\begin{lstlisting}[basicstyle=\ttfamily\footnotesize, breaklines=true, breakatwhitespace=false, frame=single, numbers=none, xleftmargin=10pt, xrightmargin=10pt]
+You are processing a batch of rows from data/dataframe.csv.
+
+Each row contains a sentence and an ambiguity score.
+
+========================
+TASK
+========================
+For EVERY row where ambiguity == 1:
+- Rewrite the sentence into a new field called "deambiguified_description"
+
+For rows where ambiguity != 1:
+- Copy the original sentence unchanged into "deambiguified_description" with no grammar fixes, no paraphrasing, and no added context
+
+========================
+CORE RULES
+========================
+1. Preserve the EXACT original meaning
+   - Do NOT change intent, claims, or tone
+   - Only clarify ambiguity when ambiguity == 1
+   - If the source is ungrammatical or missing necessary context, correct grammar or add the minimum context needed to preserve the intended meaning
+
+2. Remove ambiguity by ADDING a small, precise clarification
+   - Prefer adding details in parentheses
+
+3. Every ambiguous sentence MUST include:
+   - measurable values OR
+   - technical specifics OR
+   - concrete constraints
+
+========================
+ALLOWED CLARIFICATIONS (EXAMPLES)
+========================
+Use realistic, generic values where needed:
+
+- "high speed" -> "(e.g., 100 MB/s throughput)"
+- "low latency" -> "(e.g., <10 ms response time)"
+- "fast response" -> "(e.g., responds within 50 ms)"
+- "scalable" -> "(e.g., supports up to 1,000 concurrent users)"
+- "high availability" -> "(e.g., 99.99% uptime SLA)"
+- "secure" -> "(e.g., AES-256 encryption at rest, TLS 1.3 in transit)"
+- "real-time" -> "(e.g., <1 second processing delay)"
+- "large scale" -> "(e.g., handles millions of requests per day)"
+- "accurate" -> "(e.g., 95% precision on validation data)"
+- "reliable" -> "(e.g., less than 0.1% failure rate)"
+- "robust" -> "(e.g., remains stable under 10,000 requests per minute)"
+- "quickly" -> "(e.g., within 2 seconds)"
+- "small" -> "(e.g., under 50 MB in size)"
+- "efficient" -> "(e.g., reduces CPU usage by 30%)"
+
+Grammar / context handling:
+- If the sentence is grammatically incorrect, fix only the grammar needed for clarity
+- If the sentence is missing context, add only the smallest context needed to keep the original meaning intact
+- Do not expand the meaning beyond what the original sentence implies
+
+Grammar / context examples:
+- "No ambiguity" -> "No ambiguity"
+- "Language errors ambiguity is a grammatically wrong construction that is nevertheless understood and possibly in different ways due to the error." -> "Language errors ambiguity is a grammatically incorrect construction that is nevertheless understood and may be interpreted in different ways because of the error."
+- "Pragmatic Ambiguity is concerned with the relationship between the interpretations of a sentence and its context." -> "Pragmatic Ambiguity is concerned with the relationship between the interpretations of a sentence and its context (e.g., the speaker's intended meaning and the surrounding situation)."
+- "Syntactic ambiguity or structural ambiguity in a sentence arises when the sentence can be parsed in more than one way." -> "Syntactic ambiguity or structural ambiguity in a sentence arises when the sentence can be parsed in more than one way, producing more than one grammatical structure."
+- "Semantic ambiguity arises in a sentence when predicate logic of a sentence can lead to multiple interpretations." -> "Semantic ambiguity arises in a sentence when the predicate logic of the sentence can lead to multiple interpretations."
+
+========================
+STRICT ANTI-LAZINESS RULES
+========================
+- NEVER skip a row
+- NEVER output vague phrases like:
+  "better performance"
+  "more efficient"
+  "high quality"
+- EVERY rewritten ambiguous sentence must include a concrete clarification
+- Keep additions minimal and clean
+- DO NOT repeat the same exact numbers for every row unless appropriate
+- Use varied but realistic values
+
+========================
+OUTPUT FORMAT (MANDATORY)
+========================
+Return ONLY valid CSV. No explanations.
+
+Columns:
+original,deambiguified_description
+
+Rules:
+- Keep original text EXACTLY as given
+- If ambiguity != 1, deambiguified_description must be identical to original
+- Maintain row order
+- Quote every field
+
+Example:
+"fast system","fast system (e.g., processes 10,000 requests per second)"
+"secure platform","secure platform (e.g., AES-256 encryption at rest and TLS 1.3 in transit)"
+"real-time monitoring","real-time monitoring (e.g., updates within 1 second)"
+"scalable service","scalable service (e.g., supports 1,000 concurrent users)"
+
+========================
+BATCH DISCIPLINE
+========================
+- Treat this as part of a larger dataset (thousands of rows)
+- Be consistent across all rows
+- Do not degrade quality over the batch
+
+========================
+FINAL SELF-CHECK (REQUIRED)
+========================
+Before outputting, verify:
+1. Did I process EVERY row?
+2. Did I rewrite EVERY ambiguity == 1 row?
+3. Does EACH rewritten sentence include a measurable or technical clarification?
+4. Did I preserve the original meaning exactly?
+5. Is the output valid CSV with no extra text?
+
+If ANY check fails -> fix it before output.
+
+========================
+IMPORTANT
+========================
+Output ONLY the CSV. No comments. No explanations.
+
+Input rows (JSON):
+{rows}
+\end{lstlisting}

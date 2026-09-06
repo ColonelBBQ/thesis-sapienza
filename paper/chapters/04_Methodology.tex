@@ -1,6 +1,6 @@
 \chapter{Methodology}
 
-This chapter describes the three components of the experimental pipeline: the BERT-based classifier that serves as the primary model under test, the LLM-based disambiguation procedure used to produce clarified variants of ambiguous sentences, and the LLM direct classification setup—spanning three models in both zero-shot and few-shot configurations—evaluated as an alternative to BERT. The chapter closes with the full experimental design, defining the dataset subsets and model configurations on which each component is evaluated.
+This chapter describes the three components of the experimental pipeline: the BERT-based classifier that serves as the primary model under test, the LLM-based disambiguation procedure used to produce clarified variants of ambiguous sentences, and the LLM direct classification setup—spanning two models in both zero-shot and few-shot configurations—evaluated as an alternative to BERT. The chapter closes with the full experimental design, defining the dataset subsets and model configurations on which each component is evaluated.
 
 \section{BERT Classification Pipeline}
 
@@ -12,38 +12,27 @@ The model is built on BERT\textsubscript{BASE-UNCASED}~\cite{devlin2019bert}, a 
 
 The loss function is binary cross-entropy with logits (\texttt{BCEWithLogitsLoss}), which combines a sigmoid activation with binary cross-entropy in a numerically stable single operation. Training uses the Adam optimiser with a learning rate of $3\times10^{-5}$ and weight decay of $10^{-6}$. No learning rate scheduling is applied.
 
-\subsection{Tokenization and Preprocessing}
+\subsection{Preprocessing, Training, and Inference}
 
-Input sentences are tokenised using the BERT WordPiece tokenizer in its uncased variant, converting all text to lowercase. Each sentence is padded or truncated to a fixed length of 300 tokens—the same limit used in AI-CRAS, sufficient to cover the longest sentences in the dataset. Special tokens \texttt{[CLS]} and \texttt{[SEP]} are prepended and appended respectively, and an attention mask distinguishes real tokens from padding.
+\textbf{Tokenization.} Input sentences are tokenised using the BERT WordPiece tokenizer in its uncased variant, converting all text to lowercase. Each sentence is padded or truncated to a fixed length of 300 tokens—the same limit used in AI-CRAS, sufficient to cover the longest sentences in the dataset. Special tokens \texttt{[CLS]} and \texttt{[SEP]} are prepended and appended respectively, and an attention mask distinguishes real tokens from padding.
 
-\subsection{Training Procedure}
+\textbf{Training.} The dataset is split into training (85\%) and validation (15\%) partitions using stratified random sampling with seed 42, following the AI-CRAS protocol. Training proceeds for a maximum of 5 epochs with a batch size of 16, using full-batch validation after each epoch. An early stopping mechanism halts training if validation loss does not decrease between consecutive epochs, and the model checkpoint with the lowest validation loss is retained for evaluation.
 
-The dataset is split into training (85\%) and validation (15\%) partitions using stratified random sampling with seed 42, following the AI-CRAS protocol. Training proceeds for a maximum of 5 epochs with a batch size of 16, using full-batch validation after each epoch. An early stopping mechanism halts training if validation loss does not decrease between consecutive epochs, and the model checkpoint with the lowest validation loss is retained for evaluation.
+All experiments are run on an NVIDIA T4 GPU through Google Colaboratory, with PyTorch as the deep learning framework.
 
-All experiments are run on an Apple MPS (Metal Performance Shaders) GPU, with PyTorch as the deep learning framework. Both the training and the evaluation results are fully reproducible given the same seed and hardware.
-
-\subsection{Inference and Threshold}
-
-At inference time, the model outputs six logits per sentence, which are passed through a sigmoid function to obtain probabilities in $[0, 1]$. A sentence is considered to carry a given label if the corresponding probability exceeds the threshold of $0.20$, the value used by AI-CRAS. This threshold was chosen in the original work to maximise recall without an excessive cost in precision, and is preserved here for consistency.
+\textbf{Inference.} At inference time, the model outputs six logits per sentence, which are passed through a sigmoid function to obtain probabilities in $[0, 1]$. A sentence is considered to carry a given label if the corresponding probability exceeds the threshold of $0.20$, the value used by AI-CRAS. This threshold was chosen in the original work to maximise recall without an excessive cost in precision, and is preserved here for consistency.
 
 \subsection{Evaluation Metrics}
 
-For the binary task (requirement \textit{vs.} non-requirement), a sentence is classified as a requirement if it receives at least one label above the threshold. Standard precision, recall, and F1-score are reported.
+All evaluation follows the protocol established in AI-CRAS~\cite{casalicchio2024aicras}. For the binary task (requirement \textit{vs.} non-requirement), a sentence is classified as a requirement if it receives at least one label above the threshold. For the multi-label task, each of the six categories is treated as an independent binary problem. In both cases, the following standard metrics are reported, where true positives (TP), false positives (FP), and false negatives (FN) are defined per class or per category:
 
-For the multi-label task, the following metrics are computed:
+\begin{align}
+    \text{Precision} &= \frac{TP}{TP + FP} \label{eq:precision} \\
+    \text{Recall}    &= \frac{TP}{TP + FN} \label{eq:recall} \\
+    F_1              &= 2 \cdot \frac{\text{Precision} \cdot \text{Recall}}{\text{Precision} + \text{Recall}} \label{eq:f1}
+\end{align}
 
-\begin{itemize}
-    \item \textbf{Exact match accuracy}: the fraction of sentences for which the predicted label set exactly matches the ground truth.
-    \item \textbf{Hamming loss}: the fraction of individual label predictions that are incorrect (lower is better).
-    \item \textbf{Jaccard score}: the size of the intersection divided by the size of the union of predicted and true label sets, macro-averaged across labels.
-    \item \textbf{Precision, recall, F1-score} at three aggregation levels:
-    \begin{itemize}
-        \item \textit{Micro-averaged}: contributions of all labels pooled together, giving equal weight to every prediction.
-        \item \textit{Macro-averaged}: per-label scores averaged with equal weight, so that all six categories contribute equally regardless of frequency.
-        \item \textit{Per-label}: a separate score for each of the six categories, enabling identification of which categories are most affected by ambiguity.
-    \end{itemize}
-    \item \textbf{ROC curves and AUC}: receiver operating characteristic curves are plotted per label, and the area under the curve is computed per label, as well as for the micro and macro averages, providing a threshold-independent measure of discriminative ability.
-\end{itemize}
+Per-category precision, recall, and F\textsubscript{1}-score are computed separately for each cloud service category. Macro-averaged scores are obtained by averaging per-category scores with equal weight, so that all six categories contribute equally regardless of their frequency in the dataset. ROC curves and AUC are also computed per label, as well as for the micro and macro averages, providing a threshold-independent measure of discriminative ability.
 
 \section{LLM-Based Disambiguation}
 
@@ -61,7 +50,7 @@ To test whether ambiguity can be mitigated by rewriting, an LLM-based disambigua
     \item Output format: valid CSV with two columns — \texttt{original} and \texttt{deambiguified\_description} — preserving row order and quoting every field.
 \end{itemize}
 
-The complete prompt is reproduced in Appendix~A.
+The complete prompt is reproduced in Appendix~\ref{app:disambiguation_prompt}.
 
 \subsection{Batch Processing and Validation}
 
@@ -74,12 +63,11 @@ Non-ambiguous sentences are retained verbatim. The result is a parallel dataset 
 
 Beyond rewriting, LLMs can perform classification directly through prompting, bypassing the BERT pipeline entirely. This configuration is evaluated to determine whether a general-purpose model, instructed in natural language, can approach or exceed the performance of the domain-specific fine-tuned classifier.
 
-Three models are evaluated to assess the relationship between model capability and classification performance:
+Two models from different generations are evaluated to assess whether advances in base model quality translate into better cloud requirement classification. Both are lightweight instruction-tuned models from the same product family, but GPT\textsubscript{5.4-mini} represents a more recent architecture and training pipeline. If the newer model substantially outperforms the older one, it suggests that ongoing model improvements will continue to raise classification accuracy; if they perform similarly, the task may already be near the limit of what general-purpose prompting can achieve, regardless of generation.
 
 \begin{itemize}
-    \item \textbf{GPT\textsubscript{4.1-nano}}: a lightweight, low-cost model designed for simple tasks. It serves as a baseline for checking whether even the cheapest models can perform competent cloud-requirement classification.
-    \item \textbf{GPT\textsubscript{5.4-mini}}: a mid-range model offering a favourable balance of capability, speed, and cost. This is the primary model for both disambiguation (Section~4.2) and direct classification.
-    \item \textbf{GPT\textsubscript{5.5}}: a large, high-capability model optimised for complex reasoning. It probes the upper bound of LLM classification performance on this task.
+    \item \textbf{GPT\textsubscript{4.1-mini}}: a lightweight, cost-efficient model from the earlier generation, serving as a baseline for cloud-requirement classification.
+    \item \textbf{GPT\textsubscript{5.4-mini}}: a lightweight model from the subsequent generation, used for both disambiguation (Section~4.2) and direct classification.
 \end{itemize}
 
 All models are accessed via the OpenAI chat completions API with temperature set to 0, maximising determinism and reproducibility. No sampling or top-$p$ filtering is applied.
@@ -116,54 +104,33 @@ The zero-shot configuration also serves as a clean lower bound for the LLM condi
 
 \subsection{Few-Shot Setting}
 
-In the few-shot setting, the prompt is augmented with a set of labelled demonstrations that show the model how to perform the classification task by example. The demonstrations are selected from a dedicated example pool—the first 200 rows of the dataset—which is held out from the evaluation set to prevent data leakage.
+In the few-shot setting, the prompt is augmented with 16 labelled demonstrations that show the model how to perform the classification task by example. These demonstrations are drawn from the first 200 rows of the dataset, which are held out from evaluation entirely: no sentence the model sees during in-context learning is ever scored. The remaining 1,966 sentences form the classification set.
 
-\subsubsection{Example Selection}
+The 16 demonstrations are composed as follows. For each of the six categories, one ``prototype'' sentence is selected: a clean, unambiguous example that carries exactly that label and no others. An additional example per category is then added, chosen to reflect the natural label-count distribution observed in the dataset—roughly 75\% of labelled sentences carry a single label and 25\% carry multiple. The result is 12 labelled demonstrations (two per category) that expose the model to both pure and combined labels in realistic proportions. Finally, 4 non-requirement demonstrations—sentences carrying zero labels—are included to match their frequency in the pool (approximately one quarter of the data). All demonstrations are unambiguous, so the model learns from clear examples only.
 
-For each of the six categories, one sentence that carries that label, contains no ambiguity (\texttt{ambuiguity} = 0), and has exactly one label overall is selected as a clean prototype. The remaining slots per category are filled to match the underlying label-count distribution of the example pool: the proportion of single-label to multi-label sentences among the demonstrations is deliberately aligned with the proportion observed among labelled sentences in the pool (approximately 75\% single-label, 25\% multi-label). This ensures the model is exposed to both pure-category examples and legitimate label combinations in proportions consistent with the data, rather than being biased toward either extreme.
+The demonstrations are formatted as sentence–label pairs and prepended to the batch instruction using the same JSON output format as the zero-shot condition. The model is expected to generalise from these examples to unseen sentences.
 
-In addition, non-requirement sentences—those carrying zero labels—are included in proportion to their frequency in the pool (approximately 25\% of demonstrations), providing explicit negative examples. The total number of demonstrations is determined automatically: 12 labelled examples (one prototype plus one distribution-matched example per category) plus non-requirement examples computed as $n_{\text{non-req}} = \lfloor 12 \cdot p_{\text{non-req}} / (1 - p_{\text{non-req}}) \rfloor$ where $p_{\text{non-req}}$ is the proportion of zero-label sentences in the pool. For the pool used in this work (200 rows, first portion of the dataset), this yields 4 non-requirement demonstrations for a total of 16.
+The few-shot configuration tests whether in-context learning—a capability for which LLMs are specifically known~\cite{brown2020gpt3}—can compensate for the absence of supervised fine-tuning. Two outcomes are possible:
 
-Sentences that carry multiple labels can serve as examples for more than one category. The selection algorithm iterates over categories, uses a with-replacement mechanism across categories but ensures no sentence is duplicated within the full demonstration set, and records the chosen sentences with their complete label vectors.
-
-\subsubsection{In-Context Learning Protocol}
-
-The demonstrations are formatted as sentence–label pairs and prepended to the batch instruction, maintaining the same JSON output format used in the zero-shot condition. The model is expected to generalise from these examples to unseen sentences, applying the category definitions with the benefit of having observed concrete instances of each class.
-
-The few-shot configuration tests whether in-context learning—a capability for which LLMs are specifically known~\cite{brown2020gpt3}—can compensate for the absence of supervised fine-tuning. If the few-shot performance significantly exceeds the zero-shot baseline, it suggests that the model benefits from concrete demonstrations of the classification task beyond what the category definitions alone convey. If the gain is marginal, it indicates that the category definitions are sufficiently informative on their own, or that the model's pre-training already provides adequate coverage of cloud-requirement language.
-
-\subsubsection{Design Considerations}
-
-The example pool is deliberately subsetted to 200 rows and excluded from the classification set. This ensures a clean separation: no sentence seen during in-context learning is ever evaluated. The remaining 1,966 sentences form the classification set, maintaining a large evaluation sample despite the held-out pool. The pool size is chosen to provide sufficient candidate diversity—each category must have at least one unambiguous single-label and one additional example—while keeping the hold-out loss minimal.
-
-The selection strategy is distribution-matched: the proportion of single-label, multi-label, and non-requirement demonstrations reflects the corresponding proportions observed in the example pool. This prevents the demonstrations from introducing a label-count bias that might skew the model toward under- or over-assigning categories. All selected demonstrations are unambiguous (\texttt{ambuiguity} = 0), eliminating the risk of the model internalising unclear patterns from vague or underspecified examples.
-
-The binary requirement flag is derived from the label set, consistent with the zero-shot protocol: a sentence receiving at least one label is a requirement. The demonstrations include both requirement and non-requirement examples, with non-requirement examples presented explicitly as sentences carrying an empty label set.
+\begin{itemize}
+    \item \textbf{Few-shot outperforms zero-shot:} this would indicate that the model benefits from concrete demonstrations beyond what the category definitions alone convey, and that in-context learning transfers effectively to the technical domain of cloud requirement classification.
+    \item \textbf{Few-shot does not outperform zero-shot:} this would suggest that the category definitions are sufficiently informative on their own, or that the model's pre-training already provides adequate coverage of cloud-requirement language, leaving little room for demonstrations to add value.
+\end{itemize}
 
 \section{Experimental Design}
 \label{sec:exp-design}
 
 The classifiers are evaluated on a family of dataset subsets designed to isolate the effect of ambiguity and to measure the contribution of disambiguation.
 
-\subsection{Baseline}
+\textbf{Baseline.} The full, case-insensitively deduplicated dataset comprising 2,166 sentences, containing both ambiguous (312) and non-ambiguous (1,854) examples. This reproduces the AI-CRAS configuration as faithfully as possible and serves as the reference against which all other conditions are compared.
 
-The \textbf{baseline} subset consists of the full, case-insensitively deduplicated dataset comprising 2,166 sentences, containing both ambiguous (689) and non-ambiguous (1,578) examples. This reproduces the AI-CRAS configuration as faithfully as possible and serves as the reference against which all other conditions are compared.
+\textbf{No-ambiguity subset.} A second subset excludes all sentences flagged as ambiguous by the \texttt{ambuiguity} indicator, leaving only the 1,854 unambiguous sentences. This tests whether training and evaluating exclusively on clear sentences improves performance.
 
-\subsection{No-Ambiguity Subset}
+\textbf{Deambiguified subset.} A third subset is derived from the LLM-rewritten dataset (Section~4.2). Every ambiguous sentence is replaced by its LLM-rewritten counterpart, while non-ambiguous sentences are kept unchanged. This tests whether disambiguation improves classification performance.
 
-A second subset, \textbf{no-ambiguity}, excludes all sentences flagged as ambiguous (\texttt{ambuiguity = 1}), leaving only the 1,578 unambiguous sentences. This tests the hypothesis that training and evaluating exclusively on clear sentences improves performance.
+\textbf{LLM direct classification.} The two LLMs (GPT\textsubscript{4.1-mini}, GPT\textsubscript{5.4-mini}) are evaluated as standalone classifiers on the full 2,166-sentence dataset, in both zero-shot and few-shot configurations. No training or fine-tuning is performed; classification relies entirely on the prompt and, in the few-shot case, on in-context demonstrations drawn from a 200-row example pool disjoint from the evaluated set (1,966 sentences). Evaluation uses the same binary and per-category multi-label metrics as the BERT pipeline, excluding ROC-AUC.
 
-\subsection{Deambiguified Subset}
-
-A third subset, \textbf{deambiguified}, is derived from the LLM-rewritten dataset (Section~4.2). Every ambiguous sentence is replaced by its LLM-rewritten counterpart, while non-ambiguous sentences are kept unchanged. This tests whether disambiguation improves classification performance.
-
-\subsection{LLM Direct Classification}
-
-The three LLMs (GPT\textsubscript{4.1-nano}, GPT\textsubscript{5.4-mini}, GPT\textsubscript{5.5}) are evaluated as standalone classifiers on the full 2,166-sentence dataset, in both zero-shot and few-shot configurations. No training or fine-tuning is performed; classification relies entirely on the prompt and, in the few-shot case, on in-context demonstrations drawn from a 200-row example pool disjoint from the evaluated set (1,966 sentences). Evaluation uses the same multi-label and binary metrics as the BERT pipeline, excluding ROC-AUC.
-
-\subsection{Per-Category Analysis}
-
-Every experiment reports metrics not only globally but also broken down by the six cloud service categories. This per-category analysis is motivated by the finding in Chapter~3 that ambiguity rates vary substantially across categories (from 23.6\% for Security \& Compliance to 43.9\% for Cloud Service Essentials), and identifies whether ambiguity degrades performance uniformly or whether some categories are disproportionately affected—and whether LLMs exhibit the same category-level variation as the fine-tuned BERT model.
+\textbf{Per-category analysis.} Every experiment reports metrics not only globally but also broken down by the six cloud service categories. This per-category analysis is motivated by the finding in Chapter~3 that ambiguity rates vary substantially across categories (from 12.1\% for Security \& Compliance to 23.5\% for Cloud Service Essentials), and assesses whether ambiguity degrades performance uniformly or affects some categories disproportionately—and whether LLMs exhibit the same category-level variation as the fine-tuned BERT model.
 
 Table~\ref{tab:experiment_overview} summarises all experimental conditions.
 
@@ -176,13 +143,13 @@ Table~\ref{tab:experiment_overview} summarises all experimental conditions.
 Condition & Dataset & Classifier \\
 \midrule
 Baseline      & Full original (2,166)          & BERT \\
-No ambiguity  & Unambiguous only (1,578)       & BERT \\
+No ambiguity  & Unambiguous only (1,854)       & BERT \\
 Deambiguified & All ambiguous rewritten (2,166) & BERT \\
 \midrule
-Zero-shot     & Full original (2,166)          & GPT\textsubscript{4.1-nano} / GPT\textsubscript{5.4-mini} / GPT\textsubscript{5.5} \\
-Few-shot      & Example pool held out (1,966)  & GPT\textsubscript{4.1-nano} / GPT\textsubscript{5.4-mini} / GPT\textsubscript{5.5} \\
+Zero-shot     & Full original (2,166)          & GPT\textsubscript{4.1-mini} / GPT\textsubscript{5.4-mini} \\
+Few-shot      & Example pool held out (1,966)  & GPT\textsubscript{4.1-mini} / GPT\textsubscript{5.4-mini} \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-All BERT experiments are run with the same hyperparameter configuration and the same random seed (42) to ensure that performance differences across conditions are attributable solely to the data, not to training stochasticity. All LLM experiments use temperature 0 and identical prompts (differing only in the presence or absence of few-shot demonstrations and the model identifier), so that differences across models and settings reflect genuine capability differences rather than prompt engineering artefacts.
+All BERT experiments are run with the same hyperparameter configuration across multiple random seeds, and the reported metrics are averaged over runs to reduce the impact of training stochasticity. All LLM experiments use temperature 0 and identical prompts (differing only in the presence or absence of few-shot demonstrations and the model identifier), so that differences across models and settings reflect genuine capability differences rather than prompt engineering artefacts.
